@@ -20,6 +20,12 @@ PatchCore 第一次运行会下载 `wide_resnet50_2` 预训练权重。如果服
 USE_HF_MIRROR=1 bash scripts/precache_models.sh --models patchcore
 ```
 
+MVTec AD 数据集如果由 Anomalib 自动下载时报 404，先执行：
+
+```bash
+bash scripts/download_mvtec_categories.sh
+```
+
 如果 `anomalib[cu130]` 安装失败，可以先安装 PyTorch 官网推荐的 CUDA wheel，再执行：
 
 ```bash

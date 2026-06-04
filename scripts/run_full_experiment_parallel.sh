@@ -10,6 +10,7 @@ RESULTS_ROOT="${RESULTS_ROOT:-results}"
 OUTPUTS_ROOT="${OUTPUTS_ROOT:-outputs}"
 LOG_ROOT="${LOG_ROOT:-$OUTPUTS_ROOT/full_experiment_logs}"
 PRECACHE_MODELS="${PRECACHE_MODELS:-1}"
+PREPARE_MVTEC="${PREPARE_MVTEC:-1}"
 OFFLINE="${OFFLINE:-0}"
 
 CATEGORIES_CSV="${CATEGORIES:-bottle,hazelnut,metal_nut}"
@@ -36,6 +37,11 @@ if [[ "$OFFLINE" == "1" ]]; then
 elif [[ "$PRECACHE_MODELS" == "1" ]]; then
   echo "[full] pre-cache PatchCore backbone before parallel jobs"
   bash scripts/precache_models.sh --models patchcore | tee "$LOG_ROOT/precache_models.log"
+fi
+
+if [[ "$PREPARE_MVTEC" == "1" ]]; then
+  echo "[full] prepare MVTec AD categories before parallel jobs"
+  CATEGORIES="$CATEGORIES_CSV" DATA_ROOT="$DATA_ROOT" bash scripts/download_mvtec_categories.sh | tee "$LOG_ROOT/download_mvtec.log"
 fi
 
 run_job() {

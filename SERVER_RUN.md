@@ -67,6 +67,21 @@ python scripts/check_env.py
 USE_HF_MIRROR=1 bash scripts/precache_models.sh --models patchcore
 ```
 
+如果 Anomalib 自动下载 MVTec AD 报 `HTTP Error 404`，说明 Anomalib 内置的数据集下载链接不可用。先用官方分类别链接下载本项目需要的三类：
+
+```bash
+bash scripts/download_mvtec_categories.sh
+```
+
+下载完成后目录应类似：
+
+```text
+datasets/MVTecAD/bottle/train
+datasets/MVTecAD/bottle/test
+datasets/MVTecAD/hazelnut/train
+datasets/MVTecAD/metal_nut/train
+```
+
 如果服务器完全不能访问外网，不要在服务器上等下载。改成在有网机器上准备好下面两类资源，再传到服务器：
 
 - `datasets/MVTecAD/`：MVTec AD 数据集，至少包含 `bottle`、`hazelnut`、`metal_nut`

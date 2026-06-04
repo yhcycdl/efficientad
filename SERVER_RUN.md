@@ -144,6 +144,14 @@ USE_HF_MIRROR=1 GPUS=0,1,2,3 EFFICIENTAD_PRESET=initial50 bash scripts/run_full_
 GPUS=0,1,2,3 EFFICIENTAD_PRESET=initial50 bash scripts/run_full_experiment_parallel.sh
 ```
 
+如果 PatchCore 已经跑完，只需要从 EfficientAD 继续：
+
+```bash
+USE_HF_MIRROR=1 PREPARE_MVTEC=0 RUN_PATCHCORE=0 GPUS=0,1,2,3 EFFICIENTAD_PRESET=initial20 bash scripts/run_full_experiment_parallel.sh
+```
+
+注意：Anomalib 的 EfficientAD 要求 `train_batch_size=1`，不要把 `EFFICIENTAD_TRAIN_BATCH_SIZE` 改成大于 1。
+
 脚本会执行：
 
 - `bottle/hazelnut/metal_nut + PatchCore`

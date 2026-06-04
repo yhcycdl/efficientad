@@ -86,6 +86,12 @@ python train.py --model patchcore --category all --preset env
 python train.py --model efficientad --category all --preset final100
 ```
 
+服务器上如果 PatchCore 已经跑完，只重跑 EfficientAD 和评估：
+
+```bash
+USE_HF_MIRROR=1 PREPARE_MVTEC=0 RUN_PATCHCORE=0 GPUS=0,1,2,3 EFFICIENTAD_PRESET=initial20 bash scripts/run_full_experiment_parallel.sh
+```
+
 RTX 5060 8GB 如遇 OOM，优先把 batch size 降低：
 
 ```bash

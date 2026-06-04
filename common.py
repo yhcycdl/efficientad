@@ -85,14 +85,35 @@ def build_mvtec_datamodule(
     seed: int = 42,
 ) -> Any:
     import_anomalib()
-    from anomalib.data import MVTecAD
+    from anomalib.data import Folder
+    try:
+        from anomalib.data.utils import TestSplitMode, ValSplitMode
+    except ImportError:
+        from anomalib.data.utils.split import TestSplitMode, ValSplitMode
 
-    return MVTecAD(
-        root=str(data_root),
-        category=category,
+    category_root = Path(data_root) / category
+    test_root = category_root / "test"
+    ground_truth_root = category_root / "ground_truth"
+    defect_dirs = sorted(path.name for path in test_root.iterdir() if path.is_dir() and path.name != "good")
+    if not defect_dirs:
+        raise FileNotFoundError(f"No defect test directories found under {test_root}")
+    missing_mask_dirs = [name for name in defect_dirs if not (ground_truth_root / name).exists()]
+    if missing_mask_dirs:
+        raise FileNotFoundError(f"Missing ground_truth directories for {category}: {missing_mask_dirs}")
+
+    return Folder(
+        name=f"mvtec_{category}",
+        root=str(category_root),
+        normal_dir="train/good",
+        normal_test_dir="test/good",
+        abnormal_dir=[f"test/{name}" for name in defect_dirs],
+        mask_dir=[f"ground_truth/{name}" for name in defect_dirs],
         train_batch_size=train_batch_size,
         eval_batch_size=eval_batch_size,
         num_workers=num_workers,
+        test_split_mode=TestSplitMode.FROM_DIR,
+        val_split_mode=ValSplitMode.FROM_TEST,
+        val_split_ratio=0.2,
         seed=seed,
     )
 

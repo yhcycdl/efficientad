@@ -82,6 +82,12 @@ datasets/MVTecAD/hazelnut/train
 datasets/MVTecAD/metal_nut/train
 ```
 
+可以先检查 Anomalib 是否能读到非空 train/test split：
+
+```bash
+python scripts/check_datamodule.py --category all
+```
+
 如果服务器完全不能访问外网，不要在服务器上等下载。改成在有网机器上准备好下面两类资源，再传到服务器：
 
 - `datasets/MVTecAD/`：MVTec AD 数据集，至少包含 `bottle`、`hazelnut`、`metal_nut`

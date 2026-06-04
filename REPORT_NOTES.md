@@ -8,6 +8,8 @@
 
 PatchCore 作为 baseline，优点是小样本异常检测效果稳定、训练成本相对较低。EfficientAD 作为主模型，重点体现轻量、快速和较新的异常检测路线。两者均使用 Anomalib 框架实现，项目重点放在完整实验系统、指标对比和缺陷定位展示，而不是从零复现网络结构。
 
+为了让对比更完整，可以将模型分为三层：PaDiM 和 STFPM 作为较弱/传统 baseline，PatchCore 作为强 baseline，EfficientAD 作为主模型。这样报告中既能证明 EfficientAD 相比传统方法有竞争力，也能诚实呈现 PatchCore 在 MVTec AD 上的强定位能力。
+
 ## 改进点表述
 
 本文不声称提出新的深度模型，而是在模型输出的 anomaly map 上进行轻量级后处理优化与阈值策略消融。具体包括 Gaussian smoothing、固定阈值、Otsu 阈值、train-normal percentile 阈值、validation best-F1 阈值、多尺度 anomaly map 融合，以及连通域/形态学 mask 过滤。该设计更贴近工业部署中的后处理流程，也便于分析定位 mask 的稳定性。

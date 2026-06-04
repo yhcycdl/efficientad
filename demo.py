@@ -76,7 +76,11 @@ def build_demo(args: argparse.Namespace):
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Launch Gradio anomaly detection demo.")
-    parser.add_argument("--model", required=True, choices=["patchcore", "efficientad", "PatchCore", "EfficientAD"])
+    parser.add_argument(
+        "--model",
+        required=True,
+        choices=["padim", "stfpm", "patchcore", "efficientad", "PaDiM", "STFPM", "PatchCore", "EfficientAD"],
+    )
     parser.add_argument("--ckpt", required=True, type=Path)
     parser.add_argument("--image-size", type=int, default=DEFAULT_IMAGE_SIZE)
     parser.add_argument("--smooth-sigma", type=float, default=DEFAULT_SMOOTH_SIGMA)

@@ -10,6 +10,12 @@ from data_config import DATA_ROOT, RESULTS_ROOT
 
 
 MODEL_ALIASES = {
+    "padim": "padim",
+    "PaDiM": "padim",
+    "Padim": "padim",
+    "stfpm": "stfpm",
+    "STFPM": "stfpm",
+    "Stfpm": "stfpm",
     "patchcore": "patchcore",
     "patch_core": "patchcore",
     "PatchCore": "patchcore",
@@ -21,6 +27,8 @@ MODEL_ALIASES = {
 }
 
 ANOMALIB_MODEL_NAMES = {
+    "padim": "Padim",
+    "stfpm": "Stfpm",
     "patchcore": "Patchcore",
     "efficientad": "EfficientAd",
 }
@@ -52,8 +60,12 @@ def import_anomalib() -> None:
 def build_model(model: str) -> Any:
     import_anomalib()
     slug = normalize_model_name(model)
-    from anomalib.models import EfficientAd, Patchcore
+    from anomalib.models import EfficientAd, Padim, Patchcore, Stfpm
 
+    if slug == "padim":
+        return Padim()
+    if slug == "stfpm":
+        return Stfpm()
     if slug == "patchcore":
         return Patchcore()
     if slug == "efficientad":

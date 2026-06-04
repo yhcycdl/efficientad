@@ -468,7 +468,11 @@ def evaluate_category(args: argparse.Namespace, category: str) -> tuple[list[dic
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate MVTec AD results and threshold strategies.")
-    parser.add_argument("--model", required=True, choices=["patchcore", "efficientad", "PatchCore", "EfficientAD"])
+    parser.add_argument(
+        "--model",
+        required=True,
+        choices=["padim", "stfpm", "patchcore", "efficientad", "PaDiM", "STFPM", "PatchCore", "EfficientAD"],
+    )
     parser.add_argument("--category", required=True, choices=["bottle", "hazelnut", "metal_nut", "all"])
     parser.add_argument("--ckpt", type=Path, default=None, help="Optional checkpoint. If omitted, latest is searched.")
     parser.add_argument("--data-root", type=Path, default=DATA_ROOT)

@@ -1,4 +1,4 @@
-"""Train PatchCore or EfficientAD on the selected MVTec AD categories."""
+"""Train anomaly detection models on the selected MVTec AD categories."""
 
 from __future__ import annotations
 
@@ -20,11 +20,21 @@ from data_config import DATA_ROOT, EPOCH_PRESETS, RESULTS_ROOT, categories_from_
 
 
 def default_train_batch_size(model: str) -> int:
-    return 8 if normalize_model_name(model) == "patchcore" else 1
+    slug = normalize_model_name(model)
+    if slug in {"patchcore", "padim"}:
+        return 16
+    if slug == "stfpm":
+        return 8
+    return 1
 
 
 def default_eval_batch_size(model: str) -> int:
-    return 8 if normalize_model_name(model) == "patchcore" else 1
+    slug = normalize_model_name(model)
+    if slug in {"patchcore", "padim"}:
+        return 16
+    if slug == "stfpm":
+        return 8
+    return 1
 
 
 def run_one(
@@ -80,8 +90,12 @@ def run_one(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train PatchCore or EfficientAD on MVTec AD.")
-    parser.add_argument("--model", required=True, choices=["patchcore", "efficientad", "PatchCore", "EfficientAD"])
+    parser = argparse.ArgumentParser(description="Train an anomaly detection model on MVTec AD.")
+    parser.add_argument(
+        "--model",
+        required=True,
+        choices=["padim", "stfpm", "patchcore", "efficientad", "PaDiM", "STFPM", "PatchCore", "EfficientAD"],
+    )
     parser.add_argument("--category", required=True, choices=["bottle", "hazelnut", "metal_nut", "all"])
     parser.add_argument("--preset", choices=sorted(EPOCH_PRESETS), default=None)
     parser.add_argument("--max-epochs", type=int, default=None)

@@ -159,6 +159,17 @@ python eval.py \
 
 该实验包含多尺度 anomaly map 融合、Gaussian smoothing、阈值策略和连通域/形态学 mask 过滤，可作为报告中的主要后处理改进。
 
+额外弱 baseline 与轻量化/速度汇总：
+
+```bash
+bash scripts/run_extra_baselines.sh
+python scripts/summarize_experiments.py
+cat outputs/report_summary/compact_metrics.csv
+cat outputs/report_summary/model_profiles.csv
+```
+
+默认会补跑 `PaDiM` 和 `STFPM`。PaDiM 是传统统计特征 baseline，STFPM 是 teacher-student baseline；PatchCore 保留为强 baseline，EfficientAD 是主模型。
+
 如果要做 validation best-F1 threshold，必须避免测试集信息泄露：
 
 ```bash

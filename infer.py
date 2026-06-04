@@ -97,7 +97,11 @@ def run_inference(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run Anomalib inference and save visual outputs.")
-    parser.add_argument("--model", required=True, choices=["patchcore", "efficientad", "PatchCore", "EfficientAD"])
+    parser.add_argument(
+        "--model",
+        required=True,
+        choices=["padim", "stfpm", "patchcore", "efficientad", "PaDiM", "STFPM", "PatchCore", "EfficientAD"],
+    )
     parser.add_argument("--ckpt", required=True, type=Path)
     parser.add_argument("--input", required=True, type=Path, help="Image path or directory")
     parser.add_argument("--output-dir", type=Path, default=OUTPUTS_ROOT / "infer")

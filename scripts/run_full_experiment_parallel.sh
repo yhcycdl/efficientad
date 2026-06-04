@@ -62,6 +62,16 @@ wait_for_jobs() {
   return "$status"
 }
 
+show_recent_logs() {
+  local pattern="$1"
+  echo "[full] recent logs for $pattern"
+  for log in $LOG_ROOT/$pattern; do
+    [[ -f "$log" ]] || continue
+    echo "========== $log =========="
+    tail -n 80 "$log"
+  done
+}
+
 echo "[full] train PatchCore categories=${CATEGORIES_CSV} preset=${PATCHCORE_PRESET}"
 pids=()
 idx=0
@@ -80,7 +90,11 @@ for category in "${CATEGORIES_LIST[@]}"; do
   pids+=("$!")
   idx=$((idx + 1))
 done
-wait_for_jobs "${pids[@]}"
+if ! wait_for_jobs "${pids[@]}"; then
+  echo "[full] PatchCore stage failed"
+  show_recent_logs "train_patchcore_*.log"
+  exit 1
+fi
 
 echo "[full] train EfficientAD categories=${CATEGORIES_CSV} preset=${EFFICIENTAD_PRESET}"
 pids=()
@@ -100,7 +114,11 @@ for category in "${CATEGORIES_LIST[@]}"; do
   pids+=("$!")
   idx=$((idx + 1))
 done
-wait_for_jobs "${pids[@]}"
+if ! wait_for_jobs "${pids[@]}"; then
+  echo "[full] EfficientAD stage failed"
+  show_recent_logs "train_efficientad_*.log"
+  exit 1
+fi
 
 echo "[full] evaluate EfficientAD categories=${CATEGORIES_CSV}"
 pids=()
@@ -120,7 +138,11 @@ for category in "${CATEGORIES_LIST[@]}"; do
   pids+=("$!")
   idx=$((idx + 1))
 done
-wait_for_jobs "${pids[@]}"
+if ! wait_for_jobs "${pids[@]}"; then
+  echo "[full] evaluation stage failed"
+  show_recent_logs "eval_efficientad_*.log"
+  exit 1
+fi
 
 echo "[full] done"
 echo "[full] logs: $LOG_ROOT"

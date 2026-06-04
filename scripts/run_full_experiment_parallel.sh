@@ -164,6 +164,10 @@ if [[ "$RUN_EVAL" == "1" ]]; then
     show_recent_logs "eval_efficientad_*.log"
     exit 1
   fi
+  "$PYTHON" scripts/merge_eval_metrics.py \
+    --output-dir "$OUTPUTS_ROOT/eval" \
+    --model efficientad \
+    --categories "$CATEGORIES_CSV"
 else
   echo "[full] skip evaluation stage"
 fi

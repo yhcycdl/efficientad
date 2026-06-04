@@ -54,11 +54,20 @@ def resize_mask(mask_path: Path | None, shape: tuple[int, int]) -> np.ndarray:
 
 
 def gt_from_mvtec_path(image_path: Path, category_dir: Path, map_shape: tuple[int, int]) -> tuple[int, np.ndarray]:
+    image_path = image_path.resolve()
+    category_dir = category_dir.resolve()
     test_dir = category_dir / "test"
     try:
         rel = image_path.relative_to(test_dir)
     except ValueError:
-        return 0, np.zeros(map_shape, dtype=np.uint8)
+        parts = image_path.parts
+        try:
+            category_idx = parts.index(category_dir.name)
+            if parts[category_idx + 1] != "test":
+                return 0, np.zeros(map_shape, dtype=np.uint8)
+            rel = Path(*parts[category_idx + 2 :])
+        except (ValueError, IndexError):
+            return 0, np.zeros(map_shape, dtype=np.uint8)
     defect_type = rel.parts[0]
     if defect_type == "good":
         return 0, np.zeros(map_shape, dtype=np.uint8)
@@ -113,7 +122,7 @@ def collect_eval_samples(
     output_dir: Path,
     smooth_sigma: float,
 ) -> list[EvalSample]:
-    category_dir = data_root / category
+    category_dir = (data_root / category).resolve()
     test_dir = category_dir / "test"
     predictions = predict_folder(model_name, checkpoint, test_dir, image_size, output_dir)
     samples: list[EvalSample] = []

@@ -77,7 +77,9 @@ download_from_hf() {
   echo "[mvtec] HF_ENDPOINT=${HF_ENDPOINT:-<default>}"
   echo "[mvtec] downloading $HF_REPO/$HF_ARCHIVE"
 
-  if command -v huggingface-cli >/dev/null 2>&1; then
+  if command -v hf >/dev/null 2>&1; then
+    hf download "$HF_REPO" "$HF_ARCHIVE" --repo-type dataset --local-dir "$local_dir"
+  elif command -v huggingface-cli >/dev/null 2>&1; then
     huggingface-cli download "$HF_REPO" "$HF_ARCHIVE" --repo-type dataset --local-dir "$local_dir"
   else
     python - <<PY

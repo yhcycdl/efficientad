@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -25,8 +26,45 @@ def cache_anomalib_model(model: str) -> None:
     from common import build_model
 
     print(f"[precache] instantiating anomalib model: {model}")
-    build_model(model)
+    anomalib_model = build_model(model)
+    if model == "efficientad":
+        cache_efficientad_assets(anomalib_model)
     print(f"[precache] ready: {model}")
+
+
+def _image_count(path: Path) -> int:
+    if not path.is_dir():
+        return 0
+    extensions = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
+    return sum(1 for item in path.rglob("*") if item.suffix.lower() in extensions)
+
+
+def _move_incomplete_dir(path: Path) -> None:
+    if not path.exists():
+        return
+    backup_root = PROJECT_ROOT / ".cache" / "incomplete_assets"
+    backup_root.mkdir(parents=True, exist_ok=True)
+    backup = backup_root / f"{path.name}_{os.getpid()}"
+    print(f"[precache] moving incomplete asset dir {path} -> {backup}")
+    if backup.exists():
+        shutil.rmtree(backup)
+    shutil.move(str(path), str(backup))
+
+
+def cache_efficientad_assets(model) -> None:
+    print("[precache] preparing EfficientAD pretrained teacher weights")
+    model.prepare_pretrained_model()
+
+    imagenet_dir = Path(getattr(model, "imagenet_dir", "datasets/imagenette"))
+    if imagenet_dir.exists() and _image_count(imagenet_dir) == 0:
+        _move_incomplete_dir(imagenet_dir)
+
+    print(f"[precache] preparing EfficientAD ImageNette data at {imagenet_dir}")
+    model.prepare_imagenette_data((256, 256))
+    image_count = _image_count(imagenet_dir)
+    if image_count == 0:
+        raise RuntimeError(f"EfficientAD ImageNette cache has no images: {imagenet_dir}")
+    print(f"[precache] EfficientAD ImageNette images={image_count}")
 
 
 def parse_args() -> argparse.Namespace:

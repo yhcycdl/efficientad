@@ -38,8 +38,17 @@ if [[ "$OFFLINE" == "1" ]]; then
   export HF_DATASETS_OFFLINE=1
   echo "[full] offline mode enabled; skipping model pre-cache downloads"
 elif [[ "$PRECACHE_MODELS" == "1" ]]; then
-  echo "[full] pre-cache PatchCore backbone before parallel jobs"
-  bash scripts/precache_models.sh --models patchcore | tee "$LOG_ROOT/precache_models.log"
+  precache_model_args=()
+  if [[ "$RUN_PATCHCORE" == "1" ]]; then
+    precache_model_args+=("patchcore")
+  fi
+  if [[ "$RUN_EFFICIENTAD" == "1" ]]; then
+    precache_model_args+=("efficientad")
+  fi
+  if [[ "${#precache_model_args[@]}" -gt 0 ]]; then
+    echo "[full] pre-cache model assets before parallel jobs: ${precache_model_args[*]}"
+    bash scripts/precache_models.sh --models "${precache_model_args[@]}" | tee "$LOG_ROOT/precache_models.log"
+  fi
 fi
 
 if [[ "$PREPARE_MVTEC" == "1" ]]; then

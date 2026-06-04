@@ -152,6 +152,12 @@ USE_HF_MIRROR=1 PREPARE_MVTEC=0 RUN_PATCHCORE=0 GPUS=0,1,2,3 EFFICIENTAD_PRESET=
 
 注意：Anomalib 的 EfficientAD 要求 `train_batch_size=1`，不要把 `EFFICIENTAD_TRAIN_BATCH_SIZE` 改成大于 1。
 
+EfficientAD 第一次运行还会准备 teacher 预训练权重和 `datasets/imagenette` 辅助数据。不要让多个 EfficientAD 进程第一次同时下载它们；完整脚本会自动单进程预缓存。也可以手动执行：
+
+```bash
+USE_HF_MIRROR=1 bash scripts/precache_models.sh --models efficientad
+```
+
 脚本会执行：
 
 - `bottle/hazelnut/metal_nut + PatchCore`

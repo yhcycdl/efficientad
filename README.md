@@ -14,6 +14,12 @@ python scripts/check_env.py
 
 如果有多张 RTX 3090 的服务器，优先看 [SERVER_RUN.md](SERVER_RUN.md)，直接用服务器并行跑完整实验。
 
+PatchCore 第一次运行会下载 `wide_resnet50_2` 预训练权重。如果服务器访问 HuggingFace 慢，先执行：
+
+```bash
+USE_HF_MIRROR=1 bash scripts/precache_models.sh --models patchcore
+```
+
 如果 `anomalib[cu130]` 安装失败，可以先安装 PyTorch 官网推荐的 CUDA wheel，再执行：
 
 ```bash

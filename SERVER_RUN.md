@@ -61,6 +61,12 @@ conda activate efficientad-ad
 python scripts/check_env.py
 ```
 
+如果服务器访问 HuggingFace 慢或报超时，先用镜像把 PatchCore 的预训练 backbone 缓存下来：
+
+```bash
+USE_HF_MIRROR=1 bash scripts/precache_models.sh --models patchcore
+```
+
 ## 4. 一次性跑完整实验
 
 假设服务器有 4 张 GPU：
@@ -68,6 +74,12 @@ python scripts/check_env.py
 ```bash
 conda activate efficientad-ad
 GPUS=0,1,2,3 EFFICIENTAD_PRESET=final100 bash scripts/run_full_experiment_parallel.sh
+```
+
+如果 HuggingFace 直连不稳定，运行完整实验时也加上镜像变量：
+
+```bash
+USE_HF_MIRROR=1 GPUS=0,1,2,3 EFFICIENTAD_PRESET=initial50 bash scripts/run_full_experiment_parallel.sh
 ```
 
 如果今天时间紧，先跑 20 或 50 epoch：

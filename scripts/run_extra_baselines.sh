@@ -18,6 +18,10 @@ IFS=',' read -r -a BASELINE_LIST <<< "$BASELINES_CSV"
 
 STFPM_PRESET="${STFPM_PRESET:-initial20}"
 PADIM_PRESET="${PADIM_PRESET:-env}"
+CFLOW_PRESET="${CFLOW_PRESET:-initial20}"
+DRAEM_PRESET="${DRAEM_PRESET:-initial20}"
+FASTFLOW_PRESET="${FASTFLOW_PRESET:-initial20}"
+REVERSE_DISTILLATION_PRESET="${REVERSE_DISTILLATION_PRESET:-initial20}"
 NUM_WORKERS="${NUM_WORKERS:-8}"
 
 mkdir -p "$LOG_ROOT"
@@ -58,10 +62,28 @@ show_recent_logs() {
 
 for model in "${BASELINE_LIST[@]}"; do
   model="${model// /}"
+  model="$(printf '%s' "$model" | tr '[:upper:]' '[:lower:]')"
+  model="${model//-/_}"
   if [[ "$model" == "padim" ]]; then
     preset="$PADIM_PRESET"
     train_bs="${PADIM_TRAIN_BATCH_SIZE:-16}"
     eval_bs="${PADIM_EVAL_BATCH_SIZE:-16}"
+  elif [[ "$model" == "cflow" ]]; then
+    preset="$CFLOW_PRESET"
+    train_bs="${CFLOW_TRAIN_BATCH_SIZE:-4}"
+    eval_bs="${CFLOW_EVAL_BATCH_SIZE:-4}"
+  elif [[ "$model" == "draem" ]]; then
+    preset="$DRAEM_PRESET"
+    train_bs="${DRAEM_TRAIN_BATCH_SIZE:-4}"
+    eval_bs="${DRAEM_EVAL_BATCH_SIZE:-4}"
+  elif [[ "$model" == "fastflow" ]]; then
+    preset="$FASTFLOW_PRESET"
+    train_bs="${FASTFLOW_TRAIN_BATCH_SIZE:-8}"
+    eval_bs="${FASTFLOW_EVAL_BATCH_SIZE:-8}"
+  elif [[ "$model" == "reverse_distillation" ]]; then
+    preset="$REVERSE_DISTILLATION_PRESET"
+    train_bs="${REVERSE_DISTILLATION_TRAIN_BATCH_SIZE:-8}"
+    eval_bs="${REVERSE_DISTILLATION_EVAL_BATCH_SIZE:-8}"
   elif [[ "$model" == "stfpm" ]]; then
     preset="$STFPM_PRESET"
     train_bs="${STFPM_TRAIN_BATCH_SIZE:-8}"

@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from common import (
+    MODEL_CHOICES,
     build_engine,
     build_model,
     build_mvtec_datamodule,
@@ -23,6 +24,10 @@ def default_train_batch_size(model: str) -> int:
     slug = normalize_model_name(model)
     if slug in {"patchcore", "padim"}:
         return 16
+    if slug in {"cflow", "draem"}:
+        return 4
+    if slug in {"fastflow", "reverse_distillation"}:
+        return 8
     if slug == "stfpm":
         return 8
     return 1
@@ -32,6 +37,10 @@ def default_eval_batch_size(model: str) -> int:
     slug = normalize_model_name(model)
     if slug in {"patchcore", "padim"}:
         return 16
+    if slug in {"cflow", "draem"}:
+        return 4
+    if slug in {"fastflow", "reverse_distillation"}:
+        return 8
     if slug == "stfpm":
         return 8
     return 1
@@ -94,7 +103,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         required=True,
-        choices=["padim", "stfpm", "patchcore", "efficientad", "PaDiM", "STFPM", "PatchCore", "EfficientAD"],
+        choices=MODEL_CHOICES,
     )
     parser.add_argument("--category", required=True, choices=["bottle", "hazelnut", "metal_nut", "all"])
     parser.add_argument("--preset", choices=sorted(EPOCH_PRESETS), default=None)

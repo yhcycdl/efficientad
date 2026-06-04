@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from common import build_engine, build_model, build_predict_dataset, resolve_checkpoint, scalar_value, tensor_to_numpy
+from common import MODEL_CHOICES, build_engine, build_model, build_predict_dataset, resolve_checkpoint, scalar_value, tensor_to_numpy
 from data_config import DEFAULT_FIXED_THRESHOLD, DEFAULT_IMAGE_SIZE, DEFAULT_SMOOTH_SIGMA
 from postprocess import apply_threshold_strategy, prepare_map
 from visualize import colorize_heatmap, make_overlay, mask_image, resize_map_to_image
@@ -79,7 +79,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         required=True,
-        choices=["padim", "stfpm", "patchcore", "efficientad", "PaDiM", "STFPM", "PatchCore", "EfficientAD"],
+        choices=MODEL_CHOICES,
     )
     parser.add_argument("--ckpt", required=True, type=Path)
     parser.add_argument("--image-size", type=int, default=DEFAULT_IMAGE_SIZE)

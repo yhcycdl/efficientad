@@ -23,13 +23,14 @@ def cache_patchcore_backbone(backbone: str) -> None:
 
 
 def cache_anomalib_model(model: str) -> None:
-    from common import build_model
+    from common import build_model, normalize_model_name
 
-    print(f"[precache] instantiating anomalib model: {model}")
-    anomalib_model = build_model(model)
-    if model == "efficientad":
+    slug = normalize_model_name(model)
+    print(f"[precache] instantiating anomalib model: {slug}")
+    anomalib_model = build_model(slug)
+    if slug == "efficientad":
         cache_efficientad_assets(anomalib_model)
-    print(f"[precache] ready: {model}")
+    print(f"[precache] ready: {slug}")
 
 
 def _image_count(path: Path) -> int:
@@ -68,9 +69,11 @@ def cache_efficientad_assets(model) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    from common import MODEL_CHOICES
+
     parser = argparse.ArgumentParser(description="Pre-cache Anomalib/timm weights.")
     parser.add_argument("--patchcore-backbone", default="wide_resnet50_2")
-    parser.add_argument("--models", nargs="+", default=["patchcore"], choices=["padim", "stfpm", "patchcore", "efficientad"])
+    parser.add_argument("--models", nargs="+", default=["patchcore"], choices=MODEL_CHOICES)
     return parser.parse_args()
 
 

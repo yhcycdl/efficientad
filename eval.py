@@ -12,7 +12,17 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from common import build_engine, build_model, build_predict_dataset, path_value, resolve_checkpoint, scalar_value, tensor_to_numpy
+from common import (
+    MODEL_CHOICES,
+    build_engine,
+    build_model,
+    build_predict_dataset,
+    normalize_model_name,
+    path_value,
+    resolve_checkpoint,
+    scalar_value,
+    tensor_to_numpy,
+)
 from data_config import (
     DATA_ROOT,
     DEFAULT_FIXED_THRESHOLD,
@@ -363,18 +373,19 @@ def save_visual_examples(
 
 
 def evaluate_category(args: argparse.Namespace, category: str) -> tuple[list[dict], list[dict]]:
+    model_slug = normalize_model_name(args.model)
     checkpoint = resolve_checkpoint(args.ckpt) if args.ckpt else None
     if checkpoint is None:
         from common import find_latest_checkpoint
 
-        checkpoint = find_latest_checkpoint(args.results_root, args.model, category)
+        checkpoint = find_latest_checkpoint(args.results_root, model_slug, category)
 
-    output_dir = args.output_dir / args.model.lower() / category
+    output_dir = args.output_dir / model_slug / category
     output_dir.mkdir(parents=True, exist_ok=True)
-    print(f"[eval] model={args.model} category={category} ckpt={checkpoint}")
+    print(f"[eval] model={model_slug} category={category} ckpt={checkpoint}")
 
     samples = collect_eval_samples(
-        model_name=args.model,
+        model_name=model_slug,
         checkpoint=checkpoint,
         data_root=args.data_root,
         category=category,
@@ -391,7 +402,7 @@ def evaluate_category(args: argparse.Namespace, category: str) -> tuple[list[dic
     best_f1_global: float | None = None
     if "percentile" in args.threshold_strategies:
         train_normal_maps = collect_train_normal_maps(
-            model_name=args.model,
+            model_name=model_slug,
             checkpoint=checkpoint,
             data_root=args.data_root,
             category=category,
@@ -429,7 +440,7 @@ def evaluate_category(args: argparse.Namespace, category: str) -> tuple[list[dic
             close_size=args.close_size,
         )
         row = {
-            "model": args.model,
+            "model": model_slug,
             "category": category,
             "checkpoint": str(checkpoint),
             "strategy": strategy,
@@ -471,7 +482,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         required=True,
-        choices=["padim", "stfpm", "patchcore", "efficientad", "PaDiM", "STFPM", "PatchCore", "EfficientAD"],
+        choices=MODEL_CHOICES,
     )
     parser.add_argument("--category", required=True, choices=["bottle", "hazelnut", "metal_nut", "all"])
     parser.add_argument("--ckpt", type=Path, default=None, help="Optional checkpoint. If omitted, latest is searched.")

@@ -170,6 +170,26 @@ cat outputs/report_summary/model_profiles.csv
 
 默认会补跑 `PaDiM` 和 `STFPM`。PaDiM 是传统统计特征 baseline，STFPM 是 teacher-student baseline；PatchCore 保留为强 baseline，EfficientAD 是主模型。
 
+如果需要补充“更老的深度模型”对照，建议先跑 `FastFlow` 和 `CFlow`：
+
+```bash
+USE_HF_MIRROR=1 GPUS=0,1,2 BASELINES=fastflow,cflow CATEGORIES=bottle,hazelnut,metal_nut bash scripts/run_extra_baselines.sh
+python scripts/summarize_experiments.py
+cat outputs/report_summary/final_comparison.csv
+```
+
+这两个模型用于报告中的历史 flow-based 深度 baseline 对比。`DRAEM` 也已支持，但它可能需要额外的 DTD anomaly source；如果想补重建式 baseline，可以单独跑：
+
+```bash
+USE_HF_MIRROR=1 GPUS=0,1,2 BASELINES=draem CATEGORIES=bottle,hazelnut,metal_nut bash scripts/run_extra_baselines.sh
+```
+
+若 `DRAEM` 在当前 Anomalib 版本中因为数据源或接口差异报错，可以直接换成备用的 `ReverseDistillation`：
+
+```bash
+USE_HF_MIRROR=1 GPUS=0,1,2 BASELINES=reverse_distillation CATEGORIES=bottle,hazelnut,metal_nut bash scripts/run_extra_baselines.sh
+```
+
 如果要做 validation best-F1 threshold，必须避免测试集信息泄露：
 
 ```bash

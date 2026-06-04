@@ -16,10 +16,14 @@ from common import build_model, normalize_model_name
 
 
 EXPERIMENT_LABELS = {
+    "eval_cflow": "CFlow",
     "eval": "EfficientAD",
+    "eval_draem": "DRAEM",
     "eval_efficientad_fusion_morph": "EfficientAD+Ours",
+    "eval_fastflow": "FastFlow",
     "eval_patchcore": "PatchCore",
     "eval_padim": "PaDiM",
+    "eval_reverse_distillation": "ReverseDistillation",
     "eval_stfpm": "STFPM",
 }
 
@@ -117,15 +121,19 @@ def model_profile_rows(models: list[str], results_root: Path) -> list[dict]:
     rows = []
     for model_name in models:
         slug = normalize_model_name(model_name)
-        model = build_model(slug)
         param_count = 0
         trainable_count = 0
-        if hasattr(model, "parameters"):
-            for param in model.parameters():
-                count = int(param.numel())
-                param_count += count
-                if param.requires_grad:
-                    trainable_count += count
+        profile_error = ""
+        try:
+            model = build_model(slug)
+            if hasattr(model, "parameters"):
+                for param in model.parameters():
+                    count = int(param.numel())
+                    param_count += count
+                    if param.requires_grad:
+                        trainable_count += count
+        except Exception as exc:
+            profile_error = f"{type(exc).__name__}: {exc}"
         ckpts = sorted((results_root / slug).rglob("latest.ckpt"))
         ckpt_size_mb = sum(path.stat().st_size for path in ckpts if path.exists()) / 1024**2
         rows.append(
@@ -135,6 +143,7 @@ def model_profile_rows(models: list[str], results_root: Path) -> list[dict]:
                 "trainable_parameters_m": f"{trainable_count / 1e6:.3f}",
                 "latest_ckpt_count": len(ckpts),
                 "latest_ckpt_total_mb": f"{ckpt_size_mb:.2f}",
+                "profile_error": profile_error,
             }
         )
     return rows
@@ -162,12 +171,20 @@ def main() -> None:
     parser.add_argument("--results-root", type=Path, default=Path("results"))
     parser.add_argument("--metrics", nargs="+", default=[
         "outputs/eval/metrics_all.csv",
+        "outputs/eval_cflow/metrics_all.csv",
+        "outputs/eval_draem/metrics_all.csv",
         "outputs/eval_efficientad_fusion_morph/metrics_all.csv",
+        "outputs/eval_fastflow/metrics_all.csv",
         "outputs/eval_patchcore/metrics_all.csv",
         "outputs/eval_padim/metrics_all.csv",
+        "outputs/eval_reverse_distillation/metrics_all.csv",
         "outputs/eval_stfpm/metrics_all.csv",
     ])
-    parser.add_argument("--models", nargs="+", default=["padim", "stfpm", "efficientad", "patchcore"])
+    parser.add_argument(
+        "--models",
+        nargs="+",
+        default=["cflow", "draem", "fastflow", "padim", "stfpm", "efficientad", "patchcore", "reverse_distillation"],
+    )
     args = parser.parse_args()
 
     all_rows = []

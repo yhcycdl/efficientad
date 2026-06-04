@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from common import build_engine, build_model, build_predict_dataset, path_value, resolve_checkpoint, scalar_value, tensor_to_numpy
+from common import MODEL_CHOICES, build_engine, build_model, build_predict_dataset, path_value, resolve_checkpoint, scalar_value, tensor_to_numpy
 from data_config import DEFAULT_FIXED_THRESHOLD, DEFAULT_IMAGE_SIZE, DEFAULT_SMOOTH_SIGMA, OUTPUTS_ROOT
 from postprocess import prepare_map
 from visualize import save_prediction_visuals
@@ -100,7 +100,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         required=True,
-        choices=["padim", "stfpm", "patchcore", "efficientad", "PaDiM", "STFPM", "PatchCore", "EfficientAD"],
+        choices=MODEL_CHOICES,
     )
     parser.add_argument("--ckpt", required=True, type=Path)
     parser.add_argument("--input", required=True, type=Path, help="Image path or directory")

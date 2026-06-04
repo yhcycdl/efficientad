@@ -8,7 +8,9 @@
 
 PatchCore 作为 baseline，优点是小样本异常检测效果稳定、训练成本相对较低。EfficientAD 作为主模型，重点体现轻量、快速和较新的异常检测路线。两者均使用 Anomalib 框架实现，项目重点放在完整实验系统、指标对比和缺陷定位展示，而不是从零复现网络结构。
 
-为了让对比更完整，可以将模型分为三层：PaDiM 和 STFPM 作为较弱/传统 baseline，PatchCore 作为强 baseline，EfficientAD 作为主模型。这样报告中既能证明 EfficientAD 相比传统方法有竞争力，也能诚实呈现 PatchCore 在 MVTec AD 上的强定位能力。
+为了让对比更完整，可以将模型分为多层：PaDiM 作为传统统计特征 baseline，STFPM 作为早期 teacher-student baseline，DRAEM 作为重建式深度 baseline，FastFlow/CFlow 作为 flow-based baseline，PatchCore 作为强检索式 baseline，EfficientAD 作为主模型。这样报告中既能覆盖不同技术路线，也能诚实呈现 PatchCore 在 MVTec AD 上的强定位能力。
+
+如果实验结果显示某些传统或老模型在部分指标上超过 EfficientAD，不建议隐藏结果。更稳的写法是：EfficientAD 不是在所有 MVTec 类别上取得最优，而是作为轻量 teacher-student 路线，在图像级检测、推理效率和工程部署复杂度之间取得折中；本文进一步通过后处理增强提升其像素级定位表现。
 
 ## 改进点表述
 
@@ -28,4 +30,4 @@ MVTec AD 的官方训练集只有正常图像，异常样本和像素级 mask �
 
 ## 未来工作
 
-未来可以扩展到 VisA 数据集，增加更多类别；也可以加入 PaDiM、FastFlow 等方法进行更全面对比；进一步还可以尝试多尺度 anomaly map 融合或更复杂的形态学后处理。当前版本优先保证完整、可复现和可展示。
+未来可以扩展到 VisA 数据集，增加更多类别；也可以加入 CFlow、ReverseDistillation、GANomaly 等更多路线进行更全面对比；进一步还可以尝试训练阶段的数据增强、蒸馏损失改进或端到端轻量化。当前版本优先保证完整、可复现和可展示。

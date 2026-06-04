@@ -10,9 +10,26 @@ from data_config import DATA_ROOT, RESULTS_ROOT
 
 
 MODEL_ALIASES = {
+    "cflow": "cflow",
+    "c-flow": "cflow",
+    "c_flow": "cflow",
+    "C-Flow": "cflow",
+    "CFlow": "cflow",
+    "Cflow": "cflow",
+    "draem": "draem",
+    "DRAEM": "draem",
+    "Draem": "draem",
+    "fastflow": "fastflow",
+    "fast_flow": "fastflow",
+    "FastFlow": "fastflow",
+    "Fastflow": "fastflow",
     "padim": "padim",
     "PaDiM": "padim",
     "Padim": "padim",
+    "reverse_distillation": "reverse_distillation",
+    "reverse-distillation": "reverse_distillation",
+    "ReverseDistillation": "reverse_distillation",
+    "Reverse_Distillation": "reverse_distillation",
     "stfpm": "stfpm",
     "STFPM": "stfpm",
     "Stfpm": "stfpm",
@@ -27,11 +44,17 @@ MODEL_ALIASES = {
 }
 
 ANOMALIB_MODEL_NAMES = {
+    "cflow": "Cflow",
+    "draem": "Draem",
+    "fastflow": "Fastflow",
     "padim": "Padim",
+    "reverse_distillation": "ReverseDistillation",
     "stfpm": "Stfpm",
     "patchcore": "Patchcore",
     "efficientad": "EfficientAd",
 }
+
+MODEL_CHOICES = tuple(MODEL_ALIASES)
 
 
 def normalize_model_name(model: str) -> str:
@@ -60,17 +83,18 @@ def import_anomalib() -> None:
 def build_model(model: str) -> Any:
     import_anomalib()
     slug = normalize_model_name(model)
-    from anomalib.models import EfficientAd, Padim, Patchcore, Stfpm
+    import anomalib.models as anomalib_models
 
-    if slug == "padim":
-        return Padim()
-    if slug == "stfpm":
-        return Stfpm()
-    if slug == "patchcore":
-        return Patchcore()
-    if slug == "efficientad":
-        return EfficientAd()
-    raise AssertionError(f"Unhandled model slug: {slug}")
+    class_name = ANOMALIB_MODEL_NAMES[slug]
+    try:
+        model_cls = getattr(anomalib_models, class_name)
+    except AttributeError as exc:
+        raise RuntimeError(
+            f"Anomalib model class '{class_name}' is not available in this environment. "
+            "Run `python - <<'PY'\nimport anomalib.models as m\nprint([x for x in dir(m) if not x.startswith('_')])\nPY` "
+            "on the server to inspect installed model names."
+        ) from exc
+    return model_cls()
 
 
 def build_engine(max_epochs: int | None = None, default_root_dir: Path | str | None = None) -> Any:

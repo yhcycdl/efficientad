@@ -1,0 +1,186 @@
+# EfficientAD 工业视觉异常检测与缺陷定位
+
+这是课程大作业的可运行工程版本：使用 MVTec AD 的 `bottle`、`hazelnut`、`metal_nut` 三类，基于 Anomalib 跑通 PatchCore baseline 与 EfficientAD 主模型，并补充 Gaussian smoothing、阈值策略对比、可视化和 Gradio demo。
+
+## 1. 环境
+
+不要直接用当前系统 Python 3.13，建议新建 Python 3.11 环境：
+
+```bash
+conda env create -f environment.yml
+conda activate efficientad-ad
+python scripts/check_env.py
+```
+
+如果有多张 RTX 3090 的服务器，优先看 [SERVER_RUN.md](SERVER_RUN.md)，直接用服务器并行跑完整实验。
+
+如果 `anomalib[cu130]` 安装失败，可以先安装 PyTorch 官网推荐的 CUDA wheel，再执行：
+
+```bash
+pip install anomalib gradio matplotlib pandas pillow scikit-learn scipy
+```
+
+## 2. 第一天只跑通 smoke test
+
+先不要跑 100/200 epoch。第一天目标是：
+
+- `bottle + PatchCore` 跑通；
+- `bottle + EfficientAD` 跑通 5 epoch；
+- 能生成 anomaly heatmap。
+
+推荐先执行：
+
+```bash
+bash scripts/day1_cli_smoke.sh
+```
+
+如果 CLI 参数因为 Anomalib 版本差异失败，再使用项目封装脚本：
+
+```bash
+bash scripts/day1_smoke.sh
+```
+
+也可以分开执行：
+
+```bash
+python train.py --model patchcore --category bottle --preset env
+python train.py --model efficientad --category bottle --preset smoke
+```
+
+## 3. 训练节奏
+
+脚本支持分档 preset：
+
+```bash
+# 环境验证：1 epoch
+python train.py --model efficientad --category bottle --preset env
+
+# smoke test：5 epoch
+python train.py --model efficientad --category bottle --preset smoke
+
+# 初版结果：20 或 50 epoch
+python train.py --model efficientad --category bottle --preset initial20
+python train.py --model efficientad --category bottle --preset initial50
+
+# 最终实验：100 或 200 epoch
+python train.py --model efficientad --category bottle --preset final100
+python train.py --model efficientad --category bottle --preset final200
+```
+
+完整三类实验：
+
+```bash
+python train.py --model patchcore --category all --preset env
+python train.py --model efficientad --category all --preset final100
+```
+
+RTX 5060 8GB 如遇 OOM，优先把 batch size 降低：
+
+```bash
+python train.py --model efficientad --category bottle --preset smoke --train-batch-size 1 --eval-batch-size 1
+python train.py --model patchcore --category bottle --preset env --train-batch-size 4 --eval-batch-size 4
+```
+
+## 4. 推理与可视化
+
+训练完成后找到 checkpoint：
+
+```bash
+find results -name "*.ckpt" | sort
+```
+
+单张或文件夹推理：
+
+```bash
+python infer.py \
+  --model efficientad \
+  --ckpt results/efficientad/bottle/latest.ckpt \
+  --input datasets/MVTecAD/bottle/test/broken_large/000.png \
+  --output-dir outputs/infer/efficientad/bottle \
+  --smooth-sigma 4 \
+  --threshold-strategy otsu
+```
+
+输出包括：
+
+- anomaly map `.npz`
+- heatmap
+- overlay
+- binary mask
+- side-by-side 对比图
+- `predictions.csv`
+
+## 5. 评估与阈值策略
+
+基础阈值策略：
+
+```bash
+python eval.py \
+  --model efficientad \
+  --category bottle \
+  --ckpt results/efficientad/bottle/latest.ckpt \
+  --threshold-strategies fixed otsu percentile \
+  --save-visuals
+```
+
+如果要做 validation best-F1 threshold，必须避免测试集信息泄露：
+
+```bash
+python eval.py \
+  --model efficientad \
+  --category bottle \
+  --ckpt results/efficientad/bottle/latest.ckpt \
+  --threshold-strategies fixed otsu percentile best_f1 \
+  --threshold-val-ratio 0.2 \
+  --save-visuals
+```
+
+报告中建议写明：
+
+> 为避免阈值选择造成测试集信息泄露，本文将官方测试集按固定随机种子划分为 threshold validation 和 final test。验证集仅用于选择 best-F1 threshold，最终指标均在未参与阈值搜索的 final test 上计算。
+
+时间不够时，不做 `best_f1`，只保留 `fixed`、`otsu`、`percentile` 更稳。
+
+## 6. Gradio demo
+
+```bash
+python demo.py \
+  --model efficientad \
+  --ckpt results/efficientad/bottle/latest.ckpt \
+  --threshold-strategy otsu \
+  --smooth-sigma 4
+```
+
+打开命令行显示的本地 URL，上传图片后会展示异常分数、heatmap、overlay 和 mask。
+
+## 7. 项目结构
+
+```text
+.
+├── train.py              # Anomalib 训练封装
+├── infer.py              # 单图/文件夹推理与可视化
+├── eval.py               # 指标汇总与阈值策略对比
+├── postprocess.py        # Gaussian smoothing、Otsu、percentile、best-F1
+├── visualize.py          # heatmap/overlay/mask 生成
+├── demo.py               # Gradio demo
+├── common.py             # 模型、数据、路径等公共工具
+├── data_config.py        # 类别、路径、实验 preset
+├── scripts/
+│   ├── check_env.py
+│   └── day1_smoke.sh
+├── datasets/             # MVTec AD 下载目录
+├── results/              # 训练 checkpoint 和日志
+└── outputs/              # 推理、评估、可视化结果
+```
+
+## 8. 报告定位
+
+改进点建议表述为“轻量级后处理优化与阈值策略消融”，不要写成全新算法。主线报告结构：
+
+1. 工业异常检测背景与无监督设定；
+2. PatchCore 与 EfficientAD 方法简介；
+3. MVTec AD 三类实验设置；
+4. Gaussian smoothing 与阈值策略；
+5. image AUROC、pixel AUROC、pixel F1、推理时间对比；
+6. heatmap、overlay、mask 和失败案例分析；
+7. demo 展示与未来工作。

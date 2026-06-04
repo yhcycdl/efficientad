@@ -67,6 +67,41 @@ python scripts/check_env.py
 USE_HF_MIRROR=1 bash scripts/precache_models.sh --models patchcore
 ```
 
+如果服务器完全不能访问外网，不要在服务器上等下载。改成在有网机器上准备好下面两类资源，再传到服务器：
+
+- `datasets/MVTecAD/`：MVTec AD 数据集，至少包含 `bottle`、`hazelnut`、`metal_nut`
+- HuggingFace/timm cache：PatchCore 的 `wide_resnet50_2` 预训练权重缓存
+
+有网机器上预缓存 PatchCore 权重：
+
+```bash
+conda activate efficientad-ad
+python scripts/precache_models.py --models patchcore
+tar -czf hf_cache.tar.gz -C ~/.cache huggingface
+```
+
+上传到服务器：
+
+```bash
+rsync -av datasets/MVTecAD/ user@server:/path/to/efficientad/datasets/MVTecAD/
+scp hf_cache.tar.gz user@server:/path/to/efficientad/
+```
+
+服务器解压缓存：
+
+```bash
+cd /path/to/efficientad
+mkdir -p ~/.cache
+tar -xzf hf_cache.tar.gz -C ~/.cache
+bash scripts/check_offline_assets.sh
+```
+
+离线跑完整实验：
+
+```bash
+OFFLINE=1 PRECACHE_MODELS=0 GPUS=0,1,2,3 EFFICIENTAD_PRESET=initial50 bash scripts/run_full_experiment_parallel.sh
+```
+
 ## 4. 一次性跑完整实验
 
 假设服务器有 4 张 GPU：

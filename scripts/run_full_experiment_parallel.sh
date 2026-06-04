@@ -10,6 +10,7 @@ RESULTS_ROOT="${RESULTS_ROOT:-results}"
 OUTPUTS_ROOT="${OUTPUTS_ROOT:-outputs}"
 LOG_ROOT="${LOG_ROOT:-$OUTPUTS_ROOT/full_experiment_logs}"
 PRECACHE_MODELS="${PRECACHE_MODELS:-1}"
+OFFLINE="${OFFLINE:-0}"
 
 CATEGORIES_CSV="${CATEGORIES:-bottle,hazelnut,metal_nut}"
 IFS=',' read -r -a CATEGORIES_LIST <<< "$CATEGORIES_CSV"
@@ -28,7 +29,11 @@ mkdir -p "$RESULTS_ROOT" "$OUTPUTS_ROOT" "$LOG_ROOT"
 echo "[full] env check"
 "$PYTHON" scripts/check_env.py | tee "$LOG_ROOT/check_env.log"
 
-if [[ "$PRECACHE_MODELS" == "1" ]]; then
+if [[ "$OFFLINE" == "1" ]]; then
+  export HF_HUB_OFFLINE=1
+  export HF_DATASETS_OFFLINE=1
+  echo "[full] offline mode enabled; skipping model pre-cache downloads"
+elif [[ "$PRECACHE_MODELS" == "1" ]]; then
   echo "[full] pre-cache PatchCore backbone before parallel jobs"
   bash scripts/precache_models.sh --models patchcore | tee "$LOG_ROOT/precache_models.log"
 fi

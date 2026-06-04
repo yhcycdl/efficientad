@@ -11,6 +11,7 @@ OUTPUTS_ROOT="${OUTPUTS_ROOT:-outputs}"
 LOG_ROOT="${LOG_ROOT:-$OUTPUTS_ROOT/extra_baseline_logs}"
 CATEGORIES_CSV="${CATEGORIES:-bottle,hazelnut,metal_nut}"
 IFS=',' read -r -a CATEGORIES_LIST <<< "$CATEGORIES_CSV"
+PRECACHE_MODELS="${PRECACHE_MODELS:-1}"
 
 BASELINES_CSV="${BASELINES:-padim,stfpm}"
 IFS=',' read -r -a BASELINE_LIST <<< "$BASELINES_CSV"
@@ -20,6 +21,12 @@ PADIM_PRESET="${PADIM_PRESET:-env}"
 NUM_WORKERS="${NUM_WORKERS:-8}"
 
 mkdir -p "$LOG_ROOT"
+
+if [[ "${USE_HF_MIRROR:-0}" == "1" && -z "${HF_ENDPOINT:-}" ]]; then
+  export HF_ENDPOINT="https://hf-mirror.com"
+fi
+export HF_HUB_ETAG_TIMEOUT="${HF_HUB_ETAG_TIMEOUT:-120}"
+export HF_HUB_DOWNLOAD_TIMEOUT="${HF_HUB_DOWNLOAD_TIMEOUT:-120}"
 
 run_job() {
   local gpu="$1"
@@ -62,6 +69,11 @@ for model in "${BASELINE_LIST[@]}"; do
   else
     echo "[baseline] unsupported model: $model"
     exit 1
+  fi
+
+  if [[ "$PRECACHE_MODELS" == "1" ]]; then
+    echo "[baseline] pre-cache $model assets before parallel jobs"
+    bash scripts/precache_models.sh --models "$model" | tee "$LOG_ROOT/precache_${model}.log"
   fi
 
   echo "[baseline] train $model categories=${CATEGORIES_CSV} preset=${preset}"

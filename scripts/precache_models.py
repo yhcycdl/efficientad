@@ -70,7 +70,7 @@ def cache_efficientad_assets(model) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Pre-cache Anomalib/timm weights.")
     parser.add_argument("--patchcore-backbone", default="wide_resnet50_2")
-    parser.add_argument("--models", nargs="+", default=["patchcore"], choices=["patchcore", "efficientad"])
+    parser.add_argument("--models", nargs="+", default=["patchcore"], choices=["padim", "stfpm", "patchcore", "efficientad"])
     return parser.parse_args()
 
 

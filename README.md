@@ -141,6 +141,24 @@ python eval.py \
   --save-visuals
 ```
 
+增强后处理优化实验：
+
+```bash
+python eval.py \
+  --model efficientad \
+  --category bottle \
+  --output-dir outputs/eval_efficientad_fusion_morph \
+  --fusion-scales 224 256 288 \
+  --threshold-strategies fixed otsu percentile best_f1 \
+  --threshold-val-ratio 0.2 \
+  --mask-postprocess morph_cc \
+  --min-area 64 \
+  --close-size 5 \
+  --save-visuals
+```
+
+该实验包含多尺度 anomaly map 融合、Gaussian smoothing、阈值策略和连通域/形态学 mask 过滤，可作为报告中的主要后处理改进。
+
 如果要做 validation best-F1 threshold，必须避免测试集信息泄露：
 
 ```bash

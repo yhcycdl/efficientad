@@ -22,7 +22,7 @@ from data_config import (
     OUTPUTS_ROOT,
     categories_from_arg,
 )
-from postprocess import apply_threshold_strategy, best_f1_threshold, f1_binary, percentile_threshold, prepare_map
+from postprocess import apply_threshold_strategy, best_f1_threshold, f1_binary, percentile_threshold, prepare_map, refine_mask
 from visualize import save_prediction_visuals
 
 
@@ -113,6 +113,56 @@ def predict_folder(
     return rows
 
 
+def resize_float_map(anomaly_map: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
+    h, w = shape
+    arr = np.asarray(anomaly_map, dtype=np.float32)
+    pil = Image.fromarray((arr * 255).clip(0, 255).astype(np.uint8), mode="L")
+    pil = pil.resize((w, h), Image.Resampling.BILINEAR)
+    return np.asarray(pil).astype(np.float32) / 255.0
+
+
+def predict_folder_fused(
+    model_name: str,
+    checkpoint: Path,
+    folder: Path,
+    fusion_scales: list[int],
+    output_dir: Path,
+    smooth_sigma: float,
+) -> list[tuple[Path, np.ndarray, float, float]]:
+    scale_predictions = [
+        predict_folder(
+            model_name=model_name,
+            checkpoint=checkpoint,
+            folder=folder,
+            image_size=scale,
+            output_dir=output_dir / f"predict_scale_{scale}",
+        )
+        for scale in fusion_scales
+    ]
+    if not scale_predictions:
+        return []
+
+    fused_rows: list[tuple[Path, np.ndarray, float, float]] = []
+    for idx, base_prediction in enumerate(scale_predictions[0]):
+        image_path = base_prediction[0]
+        maps: list[np.ndarray] = []
+        scores: list[float] = []
+        inference_ms = 0.0
+        for predictions in scale_predictions:
+            pred_image_path, anomaly_map, score, pred_ms = predictions[idx]
+            image_path = pred_image_path
+            processed = prepare_map(anomaly_map, smooth_sigma=smooth_sigma, normalize=True)
+            maps.append(processed)
+            scores.append(float(score))
+            inference_ms += float(pred_ms)
+
+        base_shape = maps[0].shape
+        resized_maps = [resize_float_map(item, base_shape) if item.shape != base_shape else item for item in maps]
+        fused_map = np.mean(np.stack(resized_maps, axis=0), axis=0).astype(np.float32)
+        fused_rows.append((image_path, fused_map, float(np.mean(scores)), inference_ms))
+    return fused_rows
+
+
 def collect_eval_samples(
     model_name: str,
     checkpoint: Path,
@@ -121,13 +171,17 @@ def collect_eval_samples(
     image_size: int,
     output_dir: Path,
     smooth_sigma: float,
+    fusion_scales: list[int],
 ) -> list[EvalSample]:
     category_dir = (data_root / category).resolve()
     test_dir = category_dir / "test"
-    predictions = predict_folder(model_name, checkpoint, test_dir, image_size, output_dir)
+    if len(fusion_scales) > 1:
+        predictions = predict_folder_fused(model_name, checkpoint, test_dir, fusion_scales, output_dir, smooth_sigma)
+    else:
+        predictions = predict_folder(model_name, checkpoint, test_dir, image_size, output_dir)
     samples: list[EvalSample] = []
     for image_path, anomaly_map, score, inference_ms in predictions:
-        processed = prepare_map(anomaly_map, smooth_sigma=smooth_sigma, normalize=True)
+        processed = anomaly_map if len(fusion_scales) > 1 else prepare_map(anomaly_map, smooth_sigma=smooth_sigma, normalize=True)
         gt_label, gt_mask = gt_from_mvtec_path(image_path, category_dir, processed.shape)
         samples.append(
             EvalSample(
@@ -150,8 +204,19 @@ def collect_train_normal_maps(
     image_size: int,
     output_dir: Path,
     smooth_sigma: float,
+    fusion_scales: list[int],
 ) -> list[np.ndarray]:
     train_good = data_root / category / "train" / "good"
+    if len(fusion_scales) > 1:
+        predictions = predict_folder_fused(
+            model_name,
+            checkpoint,
+            train_good,
+            fusion_scales,
+            output_dir / "train_normal",
+            smooth_sigma,
+        )
+        return [anomaly_map for _, anomaly_map, _, _ in predictions]
     predictions = predict_folder(model_name, checkpoint, train_good, image_size, output_dir / "train_normal")
     return [prepare_map(anomaly_map, smooth_sigma=smooth_sigma, normalize=True) for _, anomaly_map, _, _ in predictions]
 
@@ -209,6 +274,10 @@ def evaluate_threshold_strategy(
     strategy: str,
     fixed_threshold_value: float,
     global_threshold: float | None,
+    mask_postprocess: str,
+    min_area: int,
+    open_size: int,
+    close_size: int,
 ) -> tuple[dict[str, float], list[dict]]:
     y_true_pixels: list[np.ndarray] = []
     y_pred_pixels: list[np.ndarray] = []
@@ -223,6 +292,8 @@ def evaluate_threshold_strategy(
             fixed_value=fixed_threshold_value,
             global_threshold=global_threshold,
         )
+        if mask_postprocess != "none":
+            mask = refine_mask(mask, min_area=min_area, open_size=open_size, close_size=close_size)
         image_pred = int(mask.max() > 0)
         y_true_pixels.append(sample.gt_mask.reshape(-1))
         y_pred_pixels.append(mask.reshape(-1))
@@ -232,6 +303,7 @@ def evaluate_threshold_strategy(
             {
                 "image_path": str(sample.image_path),
                 "strategy": strategy,
+                "mask_postprocess": mask_postprocess,
                 "threshold": threshold,
                 "score": sample.score,
                 "gt_label": sample.gt_label,
@@ -309,6 +381,7 @@ def evaluate_category(args: argparse.Namespace, category: str) -> tuple[list[dic
         image_size=args.image_size,
         output_dir=output_dir,
         smooth_sigma=args.smooth_sigma,
+        fusion_scales=args.fusion_scales,
     )
     threshold_val, final_test = split_threshold_val(samples, args.threshold_val_ratio, args.seed)
     eval_samples = final_test
@@ -325,6 +398,7 @@ def evaluate_category(args: argparse.Namespace, category: str) -> tuple[list[dic
             image_size=args.image_size,
             output_dir=output_dir,
             smooth_sigma=args.smooth_sigma,
+            fusion_scales=args.fusion_scales,
         )
     if "best_f1" in args.threshold_strategies:
         if not threshold_val:
@@ -349,12 +423,21 @@ def evaluate_category(args: argparse.Namespace, category: str) -> tuple[list[dic
             strategy=strategy,
             fixed_threshold_value=args.fixed_threshold,
             global_threshold=global_threshold,
+            mask_postprocess=args.mask_postprocess,
+            min_area=args.min_area,
+            open_size=args.open_size,
+            close_size=args.close_size,
         )
         row = {
             "model": args.model,
             "category": category,
             "checkpoint": str(checkpoint),
             "strategy": strategy,
+            "fusion_scales": "+".join(str(item) for item in args.fusion_scales),
+            "mask_postprocess": args.mask_postprocess,
+            "min_area": args.min_area,
+            "open_size": args.open_size,
+            "close_size": args.close_size,
             "global_threshold": global_threshold if global_threshold is not None else "",
             "num_threshold_val": len(threshold_val),
             "num_final_test": len(eval_samples),
@@ -393,9 +476,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=OUTPUTS_ROOT / "eval")
     parser.add_argument("--image-size", type=int, default=DEFAULT_IMAGE_SIZE)
     parser.add_argument("--smooth-sigma", type=float, default=DEFAULT_SMOOTH_SIGMA)
+    parser.add_argument("--fusion-scales", nargs="+", type=int, default=[DEFAULT_IMAGE_SIZE])
     parser.add_argument("--threshold-strategies", nargs="+", default=["fixed", "otsu", "percentile"], choices=["fixed", "otsu", "percentile", "best_f1"])
     parser.add_argument("--fixed-threshold", type=float, default=DEFAULT_FIXED_THRESHOLD)
     parser.add_argument("--percentile", type=float, default=DEFAULT_PERCENTILE)
+    parser.add_argument("--mask-postprocess", choices=["none", "morph_cc"], default="none")
+    parser.add_argument("--min-area", type=int, default=64)
+    parser.add_argument("--open-size", type=int, default=0)
+    parser.add_argument("--close-size", type=int, default=5)
     parser.add_argument("--threshold-val-ratio", type=float, default=0.0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--save-visuals", action="store_true")

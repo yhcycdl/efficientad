@@ -138,6 +138,66 @@ def binary_mask(anomaly_map: np.ndarray, threshold: float) -> np.ndarray:
     return (squeeze_map(anomaly_map) >= float(threshold)).astype(np.uint8)
 
 
+def refine_mask(
+    mask: np.ndarray,
+    min_area: int = 0,
+    open_size: int = 0,
+    close_size: int = 0,
+) -> np.ndarray:
+    """Refine a binary defect mask with morphology and connected-component filtering."""
+    refined = (np.asarray(mask) > 0)
+    if min_area <= 0 and open_size <= 0 and close_size <= 0:
+        return refined.astype(np.uint8)
+
+    try:
+        from scipy import ndimage as ndi
+
+        if open_size > 0:
+            structure = np.ones((open_size, open_size), dtype=bool)
+            refined = ndi.binary_opening(refined, structure=structure)
+        if close_size > 0:
+            structure = np.ones((close_size, close_size), dtype=bool)
+            refined = ndi.binary_closing(refined, structure=structure)
+        if min_area > 0:
+            labels, num_labels = ndi.label(refined)
+            keep = np.zeros_like(refined, dtype=bool)
+            for idx in range(1, num_labels + 1):
+                component = labels == idx
+                if int(component.sum()) >= min_area:
+                    keep |= component
+            refined = keep
+    except Exception:
+        if min_area > 0:
+            refined = _filter_components_numpy(refined, min_area=min_area)
+
+    return refined.astype(np.uint8)
+
+
+def _filter_components_numpy(mask: np.ndarray, min_area: int) -> np.ndarray:
+    mask = np.asarray(mask).astype(bool)
+    visited = np.zeros_like(mask, dtype=bool)
+    keep = np.zeros_like(mask, dtype=bool)
+    height, width = mask.shape
+    for y in range(height):
+        for x in range(width):
+            if visited[y, x] or not mask[y, x]:
+                continue
+            stack = [(y, x)]
+            visited[y, x] = True
+            component: list[tuple[int, int]] = []
+            while stack:
+                cy, cx = stack.pop()
+                component.append((cy, cx))
+                for ny, nx in ((cy - 1, cx), (cy + 1, cx), (cy, cx - 1), (cy, cx + 1)):
+                    if 0 <= ny < height and 0 <= nx < width and not visited[ny, nx] and mask[ny, nx]:
+                        visited[ny, nx] = True
+                        stack.append((ny, nx))
+            if len(component) >= min_area:
+                for cy, cx in component:
+                    keep[cy, cx] = True
+    return keep
+
+
 def apply_threshold_strategy(
     anomaly_map: np.ndarray,
     strategy: str,

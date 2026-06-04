@@ -10,7 +10,9 @@ PatchCore 作为 baseline，优点是小样本异常检测效果稳定、训练�
 
 ## 改进点表述
 
-本文不声称提出新的深度模型，而是在模型输出的 anomaly map 上进行轻量级后处理优化与阈值策略消融。具体包括 Gaussian smoothing、固定阈值、Otsu 阈值、train-normal percentile 阈值，以及可选的 validation best-F1 阈值。该设计更贴近工业部署中的后处理流程，也便于分析定位 mask 的稳定性。
+本文不声称提出新的深度模型，而是在模型输出的 anomaly map 上进行轻量级后处理优化与阈值策略消融。具体包括 Gaussian smoothing、固定阈值、Otsu 阈值、train-normal percentile 阈值、validation best-F1 阈值、多尺度 anomaly map 融合，以及连通域/形态学 mask 过滤。该设计更贴近工业部署中的后处理流程，也便于分析定位 mask 的稳定性。
+
+增强版改进可以命名为“多尺度融合与连通域约束的缺陷定位后处理”。核心思路是在多个输入尺度下分别得到 anomaly map，将它们对齐后平均融合，再通过阈值分割、闭运算和小连通域过滤得到更稳定的 binary defect mask。该方法不改动 EfficientAD 主干网络，属于部署友好的后处理优化。
 
 ## 防止数据泄露
 

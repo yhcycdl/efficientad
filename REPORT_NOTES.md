@@ -6,7 +6,7 @@
 
 ## 模型选择
 
-PatchCore 作为 baseline，优点是小样本异常检测效果稳定、训练成本相对较低。EfficientAD 作为主模型，最终报告中统一使用效果更好的 tuned EfficientAD 配置，不再把 S/M 作为主线拆开讨论。两者均使用 Anomalib 框架实现，项目重点放在完整实验系统、指标对比和缺陷定位展示，而不是从零复现网络结构。
+PatchCore 作为 baseline，优点是小样本异常检测效果稳定、训练成本相对较低。EfficientAD 作为主模型，外部对比表中统一使用效果更好的 tuned EfficientAD 配置，不在主表里塞多个 EfficientAD 版本。内部消融表必须保留原始 EfficientAD，用来回答“本文改进到底提升了多少”。两者均使用 Anomalib 框架实现，项目重点放在完整实验系统、指标对比和缺陷定位展示，而不是从零复现网络结构。
 
 为了让对比更完整，可以将模型分为多层：PaDiM 作为传统统计特征 baseline，STFPM 作为早期 teacher-student baseline，DRAEM 作为重建式深度 baseline，FastFlow/CFlow 作为 flow-based baseline，PatchCore 作为强检索式 baseline，EfficientAD 作为主模型。这样报告中既能覆盖不同技术路线，也能诚实呈现 PatchCore 在 MVTec AD 上的强定位能力。
 
@@ -18,7 +18,7 @@ PatchCore 作为 baseline，优点是小样本异常检测效果稳定、训练�
 
 增强版改进可以命名为“多尺度融合与连通域约束的缺陷定位后处理”。核心思路是在多个输入尺度下分别得到 anomaly map，将它们对齐后平均融合，再通过阈值分割、闭运算和小连通域过滤得到更稳定的 binary defect mask。该方法不改动 EfficientAD 主干网络，属于部署友好的后处理优化。
 
-最终论文主线不要再展开 EfficientAD-S 与 EfficientAD-M 的版本竞争。可以在实验设置中简单说明“本文采用 tuned EfficientAD 配置”，后文统一称为 EfficientAD。消融重点放在 fixed threshold、threshold validation、多尺度/形态学后处理之间的效果和速度权衡。
+最终论文主线不要在外部对比表展开 EfficientAD-S 与 EfficientAD-M 的版本竞争。主表只放 EfficientAD+Ours 与外部 baseline；消融表放 EfficientAD 原始版、EfficientAD-M 调优版、EfficientAD-M + Threshold Calibration、EfficientAD-M + Multi-scale/Morph。这样既能突出最终效果，也能证明改进不是凭空来的。
 
 ## 防止数据泄露
 

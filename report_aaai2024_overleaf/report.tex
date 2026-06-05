@@ -51,6 +51,9 @@
 \renewcommand{\abstractname}{Abstract}
 \renewcommand{\tablename}{Table}
 \renewcommand{\figurename}{Figure}
+\captionsetup{font=small,labelfont=bf}
+\setlength{\abovecaptionskip}{5pt}
+\setlength{\belowcaptionskip}{2pt}
 
 \newcommand{\method}{EfficientAD+Ours}
 \newcommand{\placeholder}[1]{%
@@ -76,7 +79,7 @@
 \maketitle
 
 \begin{abstract}
-工业视觉质检场景中，异常样本通常稀缺且缺陷形态具有长尾性，训练阶段只依赖正常样本的无监督异常检测因此具有重要应用价值。本文以 EfficientAD 为核心，研究面向工业产品缺陷检测的图像级异常判别与像素级缺陷定位问题。针对原始 anomaly map 在响应归一化、局部噪声和阈值敏感性方面的不足，本文采用调优后的 EfficientAD 配置，并在输出端引入 Gaussian smoothing、阈值校准和可选形态学后处理，形成 \method{}。本文在 MVTec AD 的 bottle、hazelnut 和 metal\_nut 三个类别上完成实验，并统计 Image AUROC、Pixel AUROC、Segmentation AU-PRO、Pixel F1、推理时间、参数量和 checkpoint 体积等指标。实验结果显示，\method{} 取得 0.974 的 Pixel AUROC、0.880 的 Segmentation AU-PRO、0.682 的 Fixed Pixel F1 和 0.709 的 Best Pixel F1，其中 Best Pixel F1 为所有对比方法中最高。本文进一步与 PatchCore、FastFlow、CFlow、PaDiM 和 STFPM 进行统一对比，分析不同异常检测路线在检测精度、定位质量、模型规模和推理开销之间的差异。
+工业视觉质检场景中，异常样本通常稀缺且缺陷形态具有长尾性，训练阶段只依赖正常样本的无监督异常检测因此具有重要应用价值。本文以 EfficientAD 为核心，研究面向工业产品缺陷检测的图像级异常判别与像素级缺陷定位问题。针对原始 EfficientAD anomaly map 在响应归一化、局部噪声和阈值敏感性方面的不足，本文采用调优后的 EfficientAD 配置，并在输出端引入 Gaussian smoothing、阈值校准和可选形态学后处理，形成 \method{}。本文在 MVTec AD 的 bottle、hazelnut 和 metal\_nut 三个类别上完成实验，并统计 Image AUROC、Pixel AUROC、Segmentation AU-PRO、Pixel F1、推理时间、参数量和 checkpoint 体积等指标。实验结果显示，\method{} 相比原始 EfficientAD 将 Pixel AUROC 从 0.828 提升到 0.974，将 Fixed Pixel F1 从 0.296 提升到 0.682，并取得 0.709 的 Best Pixel F1。本文进一步与 PatchCore、FastFlow、CFlow、PaDiM 和 STFPM 进行统一对比，分析不同异常检测路线在检测精度、定位质量、模型规模和推理开销之间的差异。
 \end{abstract}
 
 \section{Introduction}
@@ -85,7 +88,7 @@
 
 本文以 EfficientAD 为主线模型，构建统一的训练与评估协议，并在相同数据划分和相同评价指标下比较多类代表性异常检测方法 \citep{akcay2022anomalib,paszke2019pytorch}。EfficientAD 通过 teacher--student 特征蒸馏与 autoencoder 分支共同建模局部结构异常和更大范围的外观偏差 \citep{batzner2024efficientad}。为了将模型输出转化为更稳定的缺陷区域，本文在 anomaly map 之后进行响应平滑、阈值校准和可选形态学过滤，重点优化像素级定位质量。
 
-本文贡献可以概括为三点。第一，本文建立了面向工业异常检测的统一实验框架，覆盖无监督训练、图像级检测、像素级定位和多指标评价，使不同模型能够在一致条件下进行比较。第二，本文围绕 EfficientAD 进行配置优化和 anomaly-map refinement，并通过消融实验验证其对 Pixel AUROC、Segmentation AU-PRO 和 Pixel F1 的提升。第三，本文将 EfficientAD 与 PatchCore、FastFlow、CFlow、PaDiM、STFPM 等代表性模型进行系统对比，说明 \method{} 在最终二值缺陷 mask 的 Pixel F1 上优于外部 baseline，同时诚实呈现不同异常检测路线在小样本 MVTec AD 场景中的优势与局限。
+本文贡献可以概括为三点。第一，本文建立了面向工业异常检测的统一实验框架，覆盖无监督训练、图像级检测、像素级定位和多指标评价，使不同模型能够在一致条件下进行比较。第二，本文围绕 EfficientAD 进行配置优化和 anomaly-map refinement，并通过原始 EfficientAD、调优 EfficientAD 和后处理增强版本之间的消融实验验证各模块贡献。第三，本文将 EfficientAD 与 PatchCore、FastFlow、CFlow、PaDiM、STFPM 等代表性模型进行系统对比，说明 \method{} 在最终二值缺陷 mask 的 Pixel F1 上优于外部 baseline，同时诚实呈现不同异常检测路线在小样本 MVTec AD 场景中的优势与局限。
 
 \section{Related Work}
 
@@ -150,7 +153,7 @@ PatchCore 是 memory-bank 检索式强对比方法。它将正常训练图像的
 
 FastFlow 和 CFlow 是 flow-based 对比方法。它们在预训练特征空间中使用可逆流模型估计正常样本特征分布，并根据测试特征的 likelihood 或异常响应生成 anomaly map。本文加入这两类方法，是为了覆盖除统计建模、student--teacher 和 memory bank 之外的另一条常见异常检测路线。
 
-在实验表述中，本文将调优后的 EfficientAD 与后处理模块整体记作 \method{}。阈值选择过程中，本文从官方测试集划分 threshold validation 和 final test；threshold validation 仅用于选择阈值，最终指标在未参与阈值搜索的 final test 上统计，以避免直接用最终测试集调参造成信息泄露。
+在实验表述中，外部模型对比表只展示最终 \method{}，用于回答本文最终方案与其他方法相比的表现；内部消融表保留原始 EfficientAD、调优 EfficientAD 以及后处理增强版本，用于回答配置优化和阈值校准分别带来多少提升。阈值选择过程中，本文从官方测试集划分 threshold validation 和 final test；threshold validation 仅用于选择阈值，最终指标在未参与阈值搜索的 final test 上统计，以避免直接用最终测试集调参造成信息泄露。
 
 \subsection{Post-processing Module}
 
@@ -253,22 +256,23 @@ STFPM & 0.957 & 0.894 & 0.714 & 0.265 & 0.403 & 168.9 & 5.57 & 95.9 \\
 
 从最终二值缺陷 mask 角度看，\method{} 是本实验中表现最强的方法。其 Fixed Pixel F1 达到 0.682，高于 FastFlow 的 0.477、PatchCore 的 0.401 和 CFlow 的 0.230；Best Pixel F1 达到 0.709，为全表最高。该结果表明，经过配置优化和正确的阈值协议后，EfficientAD 在这三个 MVTec AD 类别上可以获得非常强的缺陷分割 mask 质量。
 
-\paragraph{Post-processing ablation.}
+\paragraph{Main-model ablation.}
 
-表~\ref{tab:ablation} 进一步展示本文最终 EfficientAD 配置下的阈值和后处理消融。直接采用 fixed threshold 时，EfficientAD 已经取得 0.975 的 Pixel AUROC 和 0.696 的 Fixed Pixel F1。引入 threshold validation 后，Best Pixel F1 进一步达到 0.709。多尺度融合与形态学过滤能够略微提高 Pixel AUROC，但推理时间显著增加，且 F1 不如最终单尺度配置。因此，本文最终选择单尺度 EfficientAD 加阈值校准作为主结果。
+表~\ref{tab:ablation} 展示 EfficientAD 主线内部消融。原始 EfficientAD 已能完成图像级检测，但其 Pixel AUROC 和 Pixel F1 较低，说明直接使用默认配置和固定阈值难以得到稳定缺陷 mask。采用调优后的 EfficientAD 后，Pixel AUROC 提升到 0.975，Fixed Pixel F1 提升到 0.696。进一步加入 threshold validation 后，Best Pixel F1 提升到 0.709。多尺度融合与形态学过滤能够略微提高 Pixel AUROC，但推理时间显著增加，且 F1 不如最终单尺度配置。因此，本文最终选择 tuned EfficientAD 加阈值校准作为主结果。
 
 \begin{table}[t]
 \centering
-\caption{EfficientAD 主线消融结果}
+\caption{EfficientAD 主线内部消融结果}
 \scriptsize
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{lrrrrrr}
 \toprule
 方法 & Img & Pix & AU-PRO & Fixed F1 & Best F1 & Time \\
 \midrule
-EfficientAD + fixed threshold & 0.972 & 0.975 & 0.878 & \textbf{0.696} & 0.696 & 147.5 \\
-\method{} & 0.969 & 0.974 & \textbf{0.880} & 0.682 & \textbf{0.709} & \textbf{146.8} \\
-\method{} + multi-scale/morph & 0.969 & \textbf{0.976} & 0.878 & 0.667 & 0.693 & 440.8 \\
+EfficientAD 原始版 & 0.956 & 0.828 & -- & 0.296 & 0.296 & 160.2 \\
+EfficientAD-M 调优版 & 0.972 & 0.975 & 0.878 & \textbf{0.696} & 0.696 & 147.5 \\
+EfficientAD-M + Threshold Calib. & 0.969 & 0.974 & \textbf{0.880} & 0.682 & \textbf{0.709} & \textbf{146.8} \\
+EfficientAD-M + Multi-scale/Morph & 0.969 & \textbf{0.976} & 0.878 & 0.667 & 0.693 & 440.8 \\
 \bottomrule
 \end{tabular}}
 \label{tab:ablation}
@@ -276,9 +280,9 @@ EfficientAD + fixed threshold & 0.972 & 0.975 & 0.878 & \textbf{0.696} & 0.696 &
 
 \paragraph{Analysis.}
 
-从检测能力看，最终 EfficientAD 配置和 \method{} 的 Image AUROC 均接近 0.97，保持较高图像级检测水平。相比单纯依赖固定阈值，threshold validation 主要提升最终二值 mask 的上限表现，并没有明显削弱图像级异常排序能力。
+从检测能力看，原始 EfficientAD、调优 EfficientAD 和 \method{} 的 Image AUROC 均保持在较高水平，说明本文改进没有牺牲图像级异常排序能力。调优 EfficientAD 相比原始版将 Image AUROC 从 0.956 提升到 0.972，说明模型配置优化本身对检测任务也有帮助。
 
-从定位能力看，\method{} 在 Pixel AUROC、AU-PRO、Fixed F1 和 Best F1 上均表现较强。特别是 Best Pixel F1 达到 0.709，说明最终 anomaly map 更容易被阈值策略转化为合理的缺陷 mask。Fixed Pixel F1 达到 0.682，则说明即使不只依赖最优阈值搜索，本文最终配置也能生成较稳定的二值缺陷区域。多尺度与形态学版本虽然 Pixel AUROC 略高，但耗时增加到 440.8 ms，且 F1 低于单尺度主结果，因此没有作为最终主表方法。
+从定位能力看，原始 EfficientAD 的 Fixed Pixel F1 只有 0.296，调优 EfficientAD 提升到 0.696，说明模型容量与评估协议修正是主要增益来源。加入 threshold calibration 后，Best Pixel F1 进一步达到 0.709，说明独立阈值验证能够提升最终 mask 的上限表现。多尺度与形态学版本虽然 Pixel AUROC 略高，但耗时增加到 440.8 ms，且 F1 低于单尺度主结果，因此没有作为最终主表方法。
 
 从模型规模看，CFlow 虽然 Pixel AUROC 最高，但参数量和模型存储开销显著大于其他模型；PatchCore 与 FastFlow 在部分指标上较强，但其建模路线与 EfficientAD 不同。本文工作的核心在于围绕 EfficientAD 提升 anomaly map 的可分割性，使模型输出能够更好地服务于工业质检中的缺陷区域定位。
 
@@ -305,7 +309,7 @@ EfficientAD + fixed threshold & 0.972 & 0.975 & 0.878 & \textbf{0.696} & 0.696 &
 
 \section{Conclusion}
 
-本文围绕 EfficientAD 研究工业视觉异常检测与缺陷定位问题，并提出 \method{} 对 anomaly map 进行配置优化、响应平滑和阈值校准。实验表明，本文方法在 Pixel AUROC、AU-PRO、Fixed Pixel F1 和 Best Pixel F1 上均取得较强结果，验证了最终配置对像素级缺陷定位的有效性。与 PatchCore、FastFlow、CFlow、PaDiM 和 STFPM 的对比进一步展示了不同异常检测路线在检测精度、定位质量、模型规模和推理开销上的差异。整体来看，\method{} 在最终二值缺陷 mask 的 F1 指标上取得最佳结果，能够为工业质检任务提供更准确的缺陷区域定位。后续工作将扩展更多类别，补充更充分的定性分析，并进一步优化后处理的推理效率。
+本文围绕 EfficientAD 研究工业视觉异常检测与缺陷定位问题，并提出 \method{} 对 anomaly map 进行配置优化、响应平滑和阈值校准。消融实验表明，从原始 EfficientAD 到调优 EfficientAD，再到加入 threshold calibration 的 \method{}，Pixel AUROC、Fixed Pixel F1 和 Best Pixel F1 均得到明显提升。与 PatchCore、FastFlow、CFlow、PaDiM 和 STFPM 的对比进一步展示了不同异常检测路线在检测精度、定位质量、模型规模和推理开销上的差异。整体来看，\method{} 在最终二值缺陷 mask 的 F1 指标上取得最佳结果，能够为工业质检任务提供更准确的缺陷区域定位。后续工作将扩展更多类别，补充更充分的定性分析，并进一步优化后处理的推理效率。
 
 \bibliographystyle{aaai24}
 \bibliography{references}

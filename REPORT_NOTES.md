@@ -18,6 +18,8 @@ PatchCore 作为 baseline，优点是小样本异常检测效果稳定、训练�
 
 增强版改进可以命名为“多尺度融合与连通域约束的缺陷定位后处理”。核心思路是在多个输入尺度下分别得到 anomaly map，将它们对齐后平均融合，再通过阈值分割、闭运算和小连通域过滤得到更稳定的 binary defect mask。该方法不改动 EfficientAD 主干网络，属于部署友好的后处理优化。
 
+如果需要进一步强化 EfficientAD 主线，可以补充 EfficientAD-M 调参实验。EfficientAD-M 使用更大的 student/autoencoder 配置，训练轮数可从 50 提高到 100 或 200，并与 padding 版本进行对比。报告中可将其写作“模型容量与后处理联合调优”：先比较 EfficientAD-S 与 EfficientAD-M，再比较 EfficientAD-M 和 EfficientAD-M+Ours，观察模型容量提升和后处理增强对定位指标的影响。
+
 ## 防止数据泄露
 
 MVTec AD 的官方训练集只有正常图像，异常样本和像素级 mask 只出现在测试集中。因此，如果使用 best-F1 threshold，不能在全部 test 上寻找最优阈值后又在同一个 test 上汇报最终 F1。

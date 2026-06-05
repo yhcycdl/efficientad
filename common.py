@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +42,15 @@ MODEL_ALIASES = {
     "efficient_ad": "efficientad",
     "EfficientAD": "efficientad",
     "EfficientAd": "efficientad",
+    "efficientad_s": "efficientad",
+    "efficientad-m": "efficientad_m",
+    "efficientad_m": "efficientad_m",
+    "EfficientAD-M": "efficientad_m",
+    "EfficientAD_M": "efficientad_m",
+    "efficientad-m-pad": "efficientad_m_pad",
+    "efficientad_m_pad": "efficientad_m_pad",
+    "EfficientAD-M-Pad": "efficientad_m_pad",
+    "EfficientAD_M_Pad": "efficientad_m_pad",
 }
 
 ANOMALIB_MODEL_NAMES = {
@@ -52,9 +62,17 @@ ANOMALIB_MODEL_NAMES = {
     "stfpm": "Stfpm",
     "patchcore": "Patchcore",
     "efficientad": "EfficientAd",
+    "efficientad_m": "EfficientAd",
+    "efficientad_m_pad": "EfficientAd",
 }
 
 MODEL_CHOICES = tuple(MODEL_ALIASES)
+
+EFFICIENTAD_CONFIGS: dict[str, dict[str, Any]] = {
+    "efficientad": {"model_size": "s", "padding": False},
+    "efficientad_m": {"model_size": "m", "padding": False},
+    "efficientad_m_pad": {"model_size": "m", "padding": True},
+}
 
 
 def normalize_model_name(model: str) -> str:
@@ -67,6 +85,10 @@ def normalize_model_name(model: str) -> str:
 
 def display_model_name(model: str) -> str:
     return ANOMALIB_MODEL_NAMES[normalize_model_name(model)]
+
+
+def is_efficientad_variant(model: str) -> bool:
+    return normalize_model_name(model) in EFFICIENTAD_CONFIGS
 
 
 def import_anomalib() -> None:
@@ -94,7 +116,38 @@ def build_model(model: str) -> Any:
             "Run `python - <<'PY'\nimport anomalib.models as m\nprint([x for x in dir(m) if not x.startswith('_')])\nPY` "
             "on the server to inspect installed model names."
         ) from exc
-    return model_cls()
+    kwargs = accepted_model_kwargs(model_cls, model_kwargs(slug))
+    return model_cls(**kwargs)
+
+
+def model_kwargs(model: str) -> dict[str, Any]:
+    slug = normalize_model_name(model)
+    if slug not in EFFICIENTAD_CONFIGS:
+        return {}
+    config = dict(EFFICIENTAD_CONFIGS[slug])
+    config["model_size"] = efficientad_model_size(config["model_size"])
+    return config
+
+
+def accepted_model_kwargs(model_cls: Any, kwargs: dict[str, Any]) -> dict[str, Any]:
+    if not kwargs:
+        return {}
+    try:
+        signature = inspect.signature(model_cls)
+    except (TypeError, ValueError):
+        return kwargs
+    if any(param.kind == inspect.Parameter.VAR_KEYWORD for param in signature.parameters.values()):
+        return kwargs
+    return {key: value for key, value in kwargs.items() if key in signature.parameters}
+
+
+def efficientad_model_size(value: str) -> Any:
+    try:
+        from anomalib.models.image.efficient_ad.torch_model import EfficientAdModelSize
+
+        return getattr(EfficientAdModelSize, value.upper())
+    except Exception:
+        return value
 
 
 def build_engine(max_epochs: int | None = None, default_root_dir: Path | str | None = None) -> Any:

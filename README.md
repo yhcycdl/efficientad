@@ -159,6 +159,21 @@ python eval.py \
 
 该实验包含多尺度 anomaly map 融合、Gaussian smoothing、阈值策略和连通域/形态学 mask 过滤，可作为报告中的主要后处理改进。
 
+针对 EfficientAD 的增强调参：
+
+```bash
+USE_HF_MIRROR=1 GPUS=1,2,3 EFFICIENTAD_TUNE_PRESET=final100 bash scripts/run_efficientad_tuning.sh
+cat outputs/report_summary/final_comparison.csv
+```
+
+默认会训练 `efficientad_m`，即更大的 EfficientAD-M，并额外评估 `EfficientAD-M+Ours`。如果想同时尝试 padding 版本：
+
+```bash
+USE_HF_MIRROR=1 GPUS=1,2,3 TUNING_MODELS=efficientad_m,efficientad_m_pad EFFICIENTAD_TUNE_PRESET=final100 bash scripts/run_efficientad_tuning.sh
+```
+
+如果服务器时间充足，可以将 `EFFICIENTAD_TUNE_PRESET` 改为 `final200`。EfficientAD 系列训练 batch size 建议保持 `1`。
+
 额外弱 baseline 与轻量化/速度汇总：
 
 ```bash

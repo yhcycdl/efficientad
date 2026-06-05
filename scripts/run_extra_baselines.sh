@@ -22,6 +22,7 @@ CFLOW_PRESET="${CFLOW_PRESET:-initial20}"
 DRAEM_PRESET="${DRAEM_PRESET:-initial20}"
 FASTFLOW_PRESET="${FASTFLOW_PRESET:-initial20}"
 REVERSE_DISTILLATION_PRESET="${REVERSE_DISTILLATION_PRESET:-initial20}"
+EFFICIENTAD_TUNE_PRESET="${EFFICIENTAD_TUNE_PRESET:-final100}"
 NUM_WORKERS="${NUM_WORKERS:-8}"
 
 mkdir -p "$LOG_ROOT"
@@ -84,6 +85,10 @@ for model in "${BASELINE_LIST[@]}"; do
     preset="$REVERSE_DISTILLATION_PRESET"
     train_bs="${REVERSE_DISTILLATION_TRAIN_BATCH_SIZE:-8}"
     eval_bs="${REVERSE_DISTILLATION_EVAL_BATCH_SIZE:-8}"
+  elif [[ "$model" == efficientad* ]]; then
+    preset="$EFFICIENTAD_TUNE_PRESET"
+    train_bs="${EFFICIENTAD_TRAIN_BATCH_SIZE:-1}"
+    eval_bs="${EFFICIENTAD_EVAL_BATCH_SIZE:-1}"
   elif [[ "$model" == "stfpm" ]]; then
     preset="$STFPM_PRESET"
     train_bs="${STFPM_TRAIN_BATCH_SIZE:-8}"

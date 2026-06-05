@@ -20,6 +20,10 @@ EXPERIMENT_LABELS = {
     "eval": "EfficientAD",
     "eval_draem": "DRAEM",
     "eval_efficientad_fusion_morph": "EfficientAD+Ours",
+    "eval_efficientad_m": "EfficientAD-M",
+    "eval_efficientad_m_fusion_morph": "EfficientAD-M+Ours",
+    "eval_efficientad_m_pad": "EfficientAD-M+Pad",
+    "eval_efficientad_m_pad_fusion_morph": "EfficientAD-M+Pad+Ours",
     "eval_fastflow": "FastFlow",
     "eval_patchcore": "PatchCore",
     "eval_padim": "PaDiM",
@@ -174,6 +178,10 @@ def main() -> None:
         "outputs/eval_cflow/metrics_all.csv",
         "outputs/eval_draem/metrics_all.csv",
         "outputs/eval_efficientad_fusion_morph/metrics_all.csv",
+        "outputs/eval_efficientad_m/metrics_all.csv",
+        "outputs/eval_efficientad_m_fusion_morph/metrics_all.csv",
+        "outputs/eval_efficientad_m_pad/metrics_all.csv",
+        "outputs/eval_efficientad_m_pad_fusion_morph/metrics_all.csv",
         "outputs/eval_fastflow/metrics_all.csv",
         "outputs/eval_patchcore/metrics_all.csv",
         "outputs/eval_padim/metrics_all.csv",
@@ -183,7 +191,18 @@ def main() -> None:
     parser.add_argument(
         "--models",
         nargs="+",
-        default=["cflow", "draem", "fastflow", "padim", "stfpm", "efficientad", "patchcore", "reverse_distillation"],
+        default=[
+            "cflow",
+            "draem",
+            "fastflow",
+            "padim",
+            "stfpm",
+            "efficientad",
+            "efficientad_m",
+            "efficientad_m_pad",
+            "patchcore",
+            "reverse_distillation",
+        ],
     )
     args = parser.parse_args()
 

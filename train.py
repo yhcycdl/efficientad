@@ -13,6 +13,7 @@ from common import (
     build_model,
     build_mvtec_datamodule,
     find_latest_checkpoint,
+    model_kwargs,
     normalize_model_name,
     safe_json,
     update_latest_symlink,
@@ -80,6 +81,7 @@ def run_one(
     latest = update_latest_symlink(checkpoint, results_root / slug / category)
     summary = {
         "model": slug,
+        "model_kwargs": safe_json(model_kwargs(slug)),
         "category": category,
         "max_epochs": max_epochs,
         "train_batch_size": train_batch_size,

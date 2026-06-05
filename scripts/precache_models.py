@@ -28,7 +28,7 @@ def cache_anomalib_model(model: str) -> None:
     slug = normalize_model_name(model)
     print(f"[precache] instantiating anomalib model: {slug}")
     anomalib_model = build_model(slug)
-    if slug == "efficientad":
+    if slug.startswith("efficientad"):
         cache_efficientad_assets(anomalib_model)
     print(f"[precache] ready: {slug}")
 

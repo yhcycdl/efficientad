@@ -6,19 +6,19 @@
 
 ## 模型选择
 
-PatchCore 作为 baseline，优点是小样本异常检测效果稳定、训练成本相对较低。EfficientAD 作为主模型，重点体现轻量、快速和较新的异常检测路线。两者均使用 Anomalib 框架实现，项目重点放在完整实验系统、指标对比和缺陷定位展示，而不是从零复现网络结构。
+PatchCore 作为 baseline，优点是小样本异常检测效果稳定、训练成本相对较低。EfficientAD 作为主模型，最终报告中统一使用效果更好的 tuned EfficientAD 配置，不再把 S/M 作为主线拆开讨论。两者均使用 Anomalib 框架实现，项目重点放在完整实验系统、指标对比和缺陷定位展示，而不是从零复现网络结构。
 
 为了让对比更完整，可以将模型分为多层：PaDiM 作为传统统计特征 baseline，STFPM 作为早期 teacher-student baseline，DRAEM 作为重建式深度 baseline，FastFlow/CFlow 作为 flow-based baseline，PatchCore 作为强检索式 baseline，EfficientAD 作为主模型。这样报告中既能覆盖不同技术路线，也能诚实呈现 PatchCore 在 MVTec AD 上的强定位能力。
 
-如果实验结果显示某些传统或老模型在部分指标上超过 EfficientAD，不建议隐藏结果。更稳的写法是：EfficientAD 不是在所有 MVTec 类别上取得最优，而是作为轻量 teacher-student 路线，在图像级检测、推理效率和工程部署复杂度之间取得折中；本文进一步通过后处理增强提升其像素级定位表现。
+根据修正后的最终结果，EfficientAD 主模型在 Pixel F1 上已经能够超过 PatchCore、FastFlow、CFlow、PaDiM 和 STFPM。报告中可以强调：PatchCore 的图像级 AUROC 最高，CFlow 的 Pixel AUROC/AU-PRO 最高，但本文 EfficientAD 主线在最终二值缺陷 mask 的 Fixed F1 和 Best F1 上最好，更符合缺陷定位系统对可解释 mask 的需求。
 
 ## 改进点表述
 
-本文不声称提出新的深度模型，而是在模型输出的 anomaly map 上进行轻量级后处理优化与阈值策略消融。具体包括 Gaussian smoothing、固定阈值、Otsu 阈值、train-normal percentile 阈值、validation best-F1 阈值、多尺度 anomaly map 融合，以及连通域/形态学 mask 过滤。该设计更贴近工业部署中的后处理流程，也便于分析定位 mask 的稳定性。
+本文不声称从零提出新的深度模型，而是在 EfficientAD 主模型配置、anomaly map 响应处理和阈值策略上进行工程化优化。具体包括 Gaussian smoothing、固定阈值、Otsu 阈值、train-normal percentile 阈值、validation best-F1 阈值，以及可选的多尺度 anomaly map 融合和连通域/形态学 mask 过滤。该设计更贴近工业部署中的后处理流程，也便于分析定位 mask 的稳定性。
 
 增强版改进可以命名为“多尺度融合与连通域约束的缺陷定位后处理”。核心思路是在多个输入尺度下分别得到 anomaly map，将它们对齐后平均融合，再通过阈值分割、闭运算和小连通域过滤得到更稳定的 binary defect mask。该方法不改动 EfficientAD 主干网络，属于部署友好的后处理优化。
 
-如果需要进一步强化 EfficientAD 主线，可以补充 EfficientAD-M 调参实验。EfficientAD-M 使用更大的 student/autoencoder 配置，训练轮数可从 50 提高到 100 或 200，并与 padding 版本进行对比。报告中可将其写作“模型容量与后处理联合调优”：先比较 EfficientAD-S 与 EfficientAD-M，再比较 EfficientAD-M 和 EfficientAD-M+Ours，观察模型容量提升和后处理增强对定位指标的影响。
+最终论文主线不要再展开 EfficientAD-S 与 EfficientAD-M 的版本竞争。可以在实验设置中简单说明“本文采用 tuned EfficientAD 配置”，后文统一称为 EfficientAD。消融重点放在 fixed threshold、threshold validation、多尺度/形态学后处理之间的效果和速度权衡。
 
 ## 防止数据泄露
 

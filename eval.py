@@ -279,6 +279,108 @@ def compute_auc_metrics(samples: list[EvalSample]) -> dict[str, float]:
     }
 
 
+def connected_components(mask: np.ndarray) -> list[np.ndarray]:
+    mask = np.asarray(mask).astype(bool)
+    if not mask.any():
+        return []
+    try:
+        from scipy import ndimage as ndi
+
+        labels, num_labels = ndi.label(mask)
+        return [labels == idx for idx in range(1, num_labels + 1)]
+    except Exception:
+        visited = np.zeros_like(mask, dtype=bool)
+        components: list[np.ndarray] = []
+        height, width = mask.shape
+        for y in range(height):
+            for x in range(width):
+                if visited[y, x] or not mask[y, x]:
+                    continue
+                component_pixels: list[tuple[int, int]] = []
+                stack = [(y, x)]
+                visited[y, x] = True
+                while stack:
+                    cy, cx = stack.pop()
+                    component_pixels.append((cy, cx))
+                    for ny, nx in ((cy - 1, cx), (cy + 1, cx), (cy, cx - 1), (cy, cx + 1)):
+                        if 0 <= ny < height and 0 <= nx < width and not visited[ny, nx] and mask[ny, nx]:
+                            visited[ny, nx] = True
+                            stack.append((ny, nx))
+                component = np.zeros_like(mask, dtype=bool)
+                yy, xx = zip(*component_pixels)
+                component[np.array(yy), np.array(xx)] = True
+                components.append(component)
+        return components
+
+
+def compute_aupro(samples: list[EvalSample], max_fpr: float = 0.3, num_thresholds: int = 200) -> float:
+    """Compute normalized AU-PRO for segmentation maps up to a false-positive-rate cap."""
+    anomaly_maps = [np.asarray(sample.anomaly_map, dtype=np.float32) for sample in samples]
+    gt_masks = [(np.asarray(sample.gt_mask) > 0) for sample in samples]
+    components_by_sample = [connected_components(mask) for mask in gt_masks]
+    num_regions = sum(len(components) for components in components_by_sample)
+    if not anomaly_maps or num_regions == 0:
+        return float("nan")
+
+    normal_pixel_count = float(sum((~mask).sum() for mask in gt_masks))
+    if normal_pixel_count <= 0:
+        return float("nan")
+
+    all_scores = np.concatenate([anomaly_map.reshape(-1) for anomaly_map in anomaly_maps])
+    lo = float(np.nanmin(all_scores))
+    hi = float(np.nanmax(all_scores))
+    if hi <= lo:
+        return 0.0
+
+    points: list[tuple[float, float]] = [(0.0, 0.0)]
+    for threshold in np.linspace(hi, lo, num_thresholds):
+        false_positive_count = 0.0
+        region_overlaps: list[float] = []
+        for anomaly_map, gt_mask, components in zip(anomaly_maps, gt_masks, components_by_sample):
+            prediction = anomaly_map >= threshold
+            false_positive_count += float(np.logical_and(prediction, ~gt_mask).sum())
+            for component in components:
+                area = float(component.sum())
+                if area > 0:
+                    region_overlaps.append(float(np.logical_and(prediction, component).sum()) / area)
+        fpr = false_positive_count / normal_pixel_count
+        pro = float(np.mean(region_overlaps)) if region_overlaps else 0.0
+        points.append((fpr, pro))
+
+    points.append((1.0, 1.0))
+    points = sorted(points, key=lambda item: item[0])
+    fprs = np.array([point[0] for point in points], dtype=np.float64)
+    pros = np.array([point[1] for point in points], dtype=np.float64)
+
+    unique_fprs: list[float] = []
+    unique_pros: list[float] = []
+    for fpr in np.unique(fprs):
+        unique_fprs.append(float(fpr))
+        unique_pros.append(float(np.max(pros[fprs == fpr])))
+    fprs = np.array(unique_fprs, dtype=np.float64)
+    pros = np.array(unique_pros, dtype=np.float64)
+
+    if fprs[0] > 0:
+        fprs = np.insert(fprs, 0, 0.0)
+        pros = np.insert(pros, 0, 0.0)
+    if fprs[-1] < max_fpr:
+        fprs = np.append(fprs, max_fpr)
+        pros = np.append(pros, pros[-1])
+
+    pro_at_max_fpr = float(np.interp(max_fpr, fprs, pros))
+    keep = fprs <= max_fpr
+    capped_fprs = np.append(fprs[keep], max_fpr)
+    capped_pros = np.append(pros[keep], pro_at_max_fpr)
+    order = np.argsort(capped_fprs)
+    x = capped_fprs[order]
+    y = capped_pros[order]
+    if hasattr(np, "trapezoid"):
+        area = float(np.trapezoid(y, x))
+    else:
+        area = float(np.sum((x[1:] - x[:-1]) * (y[1:] + y[:-1]) / 2.0))
+    return area / max_fpr
+
+
 def evaluate_threshold_strategy(
     samples: list[EvalSample],
     strategy: str,
@@ -397,6 +499,11 @@ def evaluate_category(args: argparse.Namespace, category: str) -> tuple[list[dic
     threshold_val, final_test = split_threshold_val(samples, args.threshold_val_ratio, args.seed)
     eval_samples = final_test
     auc_metrics = compute_auc_metrics(eval_samples)
+    auc_metrics["segmentation_aupro"] = compute_aupro(
+        eval_samples,
+        max_fpr=args.aupro_max_fpr,
+        num_thresholds=args.aupro_steps,
+    )
 
     train_normal_maps: list[np.ndarray] | None = None
     best_f1_global: float | None = None
@@ -452,6 +559,7 @@ def evaluate_category(args: argparse.Namespace, category: str) -> tuple[list[dic
             "global_threshold": global_threshold if global_threshold is not None else "",
             "num_threshold_val": len(threshold_val),
             "num_final_test": len(eval_samples),
+            "aupro_max_fpr": args.aupro_max_fpr,
             **auc_metrics,
             **strategy_metrics,
         }
@@ -500,6 +608,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--open-size", type=int, default=0)
     parser.add_argument("--close-size", type=int, default=5)
     parser.add_argument("--threshold-val-ratio", type=float, default=0.0)
+    parser.add_argument("--aupro-max-fpr", type=float, default=0.3)
+    parser.add_argument("--aupro-steps", type=int, default=200)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--save-visuals", action="store_true")
     parser.add_argument("--visual-limit", type=int, default=8)

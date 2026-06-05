@@ -30,6 +30,12 @@ MVTec AD 的官方训练集只有正常图像，异常样本和像素级 mask �
 
 如果时间不足，可以不报告 best-F1 threshold，只报告 fixed、Otsu 和 train-normal percentile 三种不使用测试答案调阈值的策略。
 
+## 指标口径
+
+为了和 EfficientAD 原论文保持可比性，报告中可以同时使用 Detection AUROC 和 Segmentation AU-PRO。Detection AUROC 对应本文表格中的 image AUROC，衡量图像级异常排序能力；Segmentation AU-PRO 衡量异常热力图对真实缺陷连通区域的覆盖能力，本文默认在 FPR <= 0.3 范围内归一化积分。
+
+Pixel F1 与 AU-PRO 不是同一种指标。AU-PRO 是阈值扫描指标，更接近论文中的定位评价；Pixel F1 是选定阈值后的二值 mask 质量，更接近最终落地展示。报告中建议将 AU-PRO 用作论文对齐指标，将 Pixel F1 用作后处理和阈值策略消融指标。
+
 ## 未来工作
 
 未来可以扩展到 VisA 数据集，增加更多类别；也可以加入 CFlow、ReverseDistillation、GANomaly 等更多路线进行更全面对比；进一步还可以尝试训练阶段的数据增强、蒸馏损失改进或端到端轻量化。当前版本优先保证完整、可复现和可展示。

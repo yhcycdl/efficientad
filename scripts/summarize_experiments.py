@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import math
 import sys
 from pathlib import Path
 
@@ -64,6 +65,23 @@ def to_float(value: str | float | int | None, default: float = 0.0) -> float:
         return default
 
 
+def mean_field(rows: list[dict], field: str, precision: int = 6) -> str:
+    values: list[float] = []
+    for row in rows:
+        value = row.get(field)
+        if value in {None, ""}:
+            continue
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(parsed):
+            values.append(parsed)
+    if not values:
+        return ""
+    return f"{sum(values) / len(values):.{precision}f}"
+
+
 def variant_label(experiment: str, model: str) -> str:
     return EXPERIMENT_LABELS.get(experiment, model)
 
@@ -85,6 +103,7 @@ def best_rows(metrics: list[dict]) -> list[dict]:
                 "category": category,
                 "image_auroc": fixed.get("image_auroc", ""),
                 "pixel_auroc": fixed.get("pixel_auroc", ""),
+                "segmentation_aupro": fixed.get("segmentation_aupro", ""),
                 "mean_inference_ms": fixed.get("mean_inference_ms", ""),
                 "fixed_pixel_f1": fixed.get("pixel_f1", ""),
                 "best_strategy": best_pixel.get("strategy", ""),
@@ -111,11 +130,12 @@ def aggregate_rows(compact_rows: list[dict]) -> list[dict]:
                 "variant": variant,
                 "model": model,
                 "num_categories": len(rows),
-                "mean_image_auroc": f"{sum(to_float(row.get('image_auroc')) for row in rows) / len(rows):.6f}",
-                "mean_pixel_auroc": f"{sum(to_float(row.get('pixel_auroc')) for row in rows) / len(rows):.6f}",
-                "mean_fixed_pixel_f1": f"{sum(to_float(row.get('fixed_pixel_f1')) for row in rows) / len(rows):.6f}",
-                "mean_best_pixel_f1": f"{sum(to_float(row.get('best_pixel_f1')) for row in rows) / len(rows):.6f}",
-                "mean_inference_ms": f"{sum(to_float(row.get('mean_inference_ms')) for row in rows) / len(rows):.3f}",
+                "mean_image_auroc": mean_field(rows, "image_auroc"),
+                "mean_pixel_auroc": mean_field(rows, "pixel_auroc"),
+                "mean_segmentation_aupro": mean_field(rows, "segmentation_aupro"),
+                "mean_fixed_pixel_f1": mean_field(rows, "fixed_pixel_f1"),
+                "mean_best_pixel_f1": mean_field(rows, "best_pixel_f1"),
+                "mean_inference_ms": mean_field(rows, "mean_inference_ms", precision=3),
             }
         )
     return output

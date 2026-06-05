@@ -141,6 +141,17 @@ python eval.py \
   --save-visuals
 ```
 
+评估 CSV 中包含论文常用的 `image_auroc`、`pixel_auroc` 和 `segmentation_aupro`，同时保留最终二值 mask 使用的 `pixel_f1`。其中 `segmentation_aupro` 默认在 `FPR <= 0.3` 范围内计算：
+
+```bash
+python eval.py \
+  --model efficientad_m \
+  --category all \
+  --output-dir outputs/eval_efficientad_m \
+  --threshold-strategies fixed otsu percentile \
+  --aupro-max-fpr 0.3
+```
+
 增强后处理优化实验：
 
 ```bash

@@ -32,7 +32,7 @@ from data_config import (
     OUTPUTS_ROOT,
     categories_from_arg,
 )
-from postprocess import apply_threshold_strategy, best_f1_threshold, f1_binary, percentile_threshold, prepare_map, refine_mask
+from postprocess import apply_threshold_strategy, best_f1_threshold, f1_binary, percentile_threshold, prepare_map, refine_mask, squeeze_map
 from visualize import save_prediction_visuals
 
 
@@ -125,10 +125,25 @@ def predict_folder(
 
 def resize_float_map(anomaly_map: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
     h, w = shape
-    arr = np.asarray(anomaly_map, dtype=np.float32)
-    pil = Image.fromarray((arr * 255).clip(0, 255).astype(np.uint8), mode="L")
-    pil = pil.resize((w, h), Image.Resampling.BILINEAR)
-    return np.asarray(pil).astype(np.float32) / 255.0
+    arr = squeeze_map(anomaly_map)
+    try:
+        import torch
+        import torch.nn.functional as F
+
+        tensor = torch.from_numpy(arr).float()[None, None]
+        resized = F.interpolate(tensor, size=(h, w), mode="bilinear", align_corners=False)
+        return resized[0, 0].numpy().astype(np.float32)
+    except Exception:
+        # Fallback for environments without torch at import time. This path is only
+        # for visualization-scale resizing, so preserving relative contrast is enough.
+        mn = float(np.nanmin(arr))
+        mx = float(np.nanmax(arr))
+        if mx - mn < 1e-8:
+            return np.zeros((h, w), dtype=np.float32) + mn
+        normalized = (arr - mn) / (mx - mn)
+        pil = Image.fromarray((normalized * 255).clip(0, 255).astype(np.uint8), mode="L")
+        pil = pil.resize((w, h), Image.Resampling.BILINEAR)
+        return np.asarray(pil).astype(np.float32) / 255.0 * (mx - mn) + mn
 
 
 def predict_folder_fused(
@@ -138,6 +153,7 @@ def predict_folder_fused(
     fusion_scales: list[int],
     output_dir: Path,
     smooth_sigma: float,
+    per_image_normalize: bool,
 ) -> list[tuple[Path, np.ndarray, float, float]]:
     scale_predictions = [
         predict_folder(
@@ -161,7 +177,7 @@ def predict_folder_fused(
         for predictions in scale_predictions:
             pred_image_path, anomaly_map, score, pred_ms = predictions[idx]
             image_path = pred_image_path
-            processed = prepare_map(anomaly_map, smooth_sigma=smooth_sigma, normalize=True)
+            processed = prepare_map(anomaly_map, smooth_sigma=smooth_sigma, normalize=per_image_normalize)
             maps.append(processed)
             scores.append(float(score))
             inference_ms += float(pred_ms)
@@ -182,16 +198,30 @@ def collect_eval_samples(
     output_dir: Path,
     smooth_sigma: float,
     fusion_scales: list[int],
+    map_normalization: str,
 ) -> list[EvalSample]:
     category_dir = (data_root / category).resolve()
     test_dir = category_dir / "test"
+    per_image_normalize = map_normalization == "per_image"
     if len(fusion_scales) > 1:
-        predictions = predict_folder_fused(model_name, checkpoint, test_dir, fusion_scales, output_dir, smooth_sigma)
+        predictions = predict_folder_fused(
+            model_name,
+            checkpoint,
+            test_dir,
+            fusion_scales,
+            output_dir,
+            smooth_sigma,
+            per_image_normalize=per_image_normalize,
+        )
     else:
         predictions = predict_folder(model_name, checkpoint, test_dir, image_size, output_dir)
     samples: list[EvalSample] = []
     for image_path, anomaly_map, score, inference_ms in predictions:
-        processed = anomaly_map if len(fusion_scales) > 1 else prepare_map(anomaly_map, smooth_sigma=smooth_sigma, normalize=True)
+        processed = (
+            anomaly_map
+            if len(fusion_scales) > 1
+            else prepare_map(anomaly_map, smooth_sigma=smooth_sigma, normalize=per_image_normalize)
+        )
         gt_label, gt_mask = gt_from_mvtec_path(image_path, category_dir, processed.shape)
         samples.append(
             EvalSample(
@@ -215,8 +245,10 @@ def collect_train_normal_maps(
     output_dir: Path,
     smooth_sigma: float,
     fusion_scales: list[int],
+    map_normalization: str,
 ) -> list[np.ndarray]:
     train_good = data_root / category / "train" / "good"
+    per_image_normalize = map_normalization == "per_image"
     if len(fusion_scales) > 1:
         predictions = predict_folder_fused(
             model_name,
@@ -225,10 +257,14 @@ def collect_train_normal_maps(
             fusion_scales,
             output_dir / "train_normal",
             smooth_sigma,
+            per_image_normalize=per_image_normalize,
         )
         return [anomaly_map for _, anomaly_map, _, _ in predictions]
     predictions = predict_folder(model_name, checkpoint, train_good, image_size, output_dir / "train_normal")
-    return [prepare_map(anomaly_map, smooth_sigma=smooth_sigma, normalize=True) for _, anomaly_map, _, _ in predictions]
+    return [
+        prepare_map(anomaly_map, smooth_sigma=smooth_sigma, normalize=per_image_normalize)
+        for _, anomaly_map, _, _ in predictions
+    ]
 
 
 def split_threshold_val(samples: list[EvalSample], ratio: float, seed: int) -> tuple[list[EvalSample], list[EvalSample]]:
@@ -495,6 +531,7 @@ def evaluate_category(args: argparse.Namespace, category: str) -> tuple[list[dic
         output_dir=output_dir,
         smooth_sigma=args.smooth_sigma,
         fusion_scales=args.fusion_scales,
+        map_normalization=args.map_normalization,
     )
     threshold_val, final_test = split_threshold_val(samples, args.threshold_val_ratio, args.seed)
     eval_samples = final_test
@@ -517,6 +554,7 @@ def evaluate_category(args: argparse.Namespace, category: str) -> tuple[list[dic
             output_dir=output_dir,
             smooth_sigma=args.smooth_sigma,
             fusion_scales=args.fusion_scales,
+            map_normalization=args.map_normalization,
         )
     if "best_f1" in args.threshold_strategies:
         if not threshold_val:
@@ -599,6 +637,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=OUTPUTS_ROOT / "eval")
     parser.add_argument("--image-size", type=int, default=DEFAULT_IMAGE_SIZE)
     parser.add_argument("--smooth-sigma", type=float, default=DEFAULT_SMOOTH_SIGMA)
+    parser.add_argument(
+        "--map-normalization",
+        choices=["model", "per_image"],
+        default="model",
+        help=(
+            "model keeps the anomaly-map scale returned by Anomalib/EfficientAD; "
+            "per_image reproduces the older per-image min-max normalization."
+        ),
+    )
     parser.add_argument("--fusion-scales", nargs="+", type=int, default=[DEFAULT_IMAGE_SIZE])
     parser.add_argument("--threshold-strategies", nargs="+", default=["fixed", "otsu", "percentile"], choices=["fixed", "otsu", "percentile", "best_f1"])
     parser.add_argument("--fixed-threshold", type=float, default=DEFAULT_FIXED_THRESHOLD)

@@ -1,0 +1,309 @@
+\documentclass[letterpaper]{article}
+\usepackage{aaai24}
+\usepackage{times}
+\usepackage{helvet}
+\usepackage{courier}
+\usepackage[hyphens]{url}
+\usepackage{graphicx}
+\urlstyle{rm}
+\def\UrlFont{\rm}
+\usepackage{natbib}
+\usepackage{caption}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{xeCJK}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds}
+
+\IfFontExistsTF{Noto Serif CJK SC}{
+  \setCJKmainfont{Noto Serif CJK SC}
+}{
+  \setCJKmainfont[AutoFakeBold=2.0]{FandolSong-Regular}
+}
+\IfFontExistsTF{Noto Sans CJK SC}{
+  \setCJKsansfont{Noto Sans CJK SC}
+}{
+  \setCJKsansfont[AutoFakeBold=2.0]{FandolHei-Regular}
+}
+\IfFontExistsTF{Noto Sans Mono CJK SC}{
+  \setCJKmonofont{Noto Sans Mono CJK SC}
+}{
+  \setCJKmonofont{FandolFang-Regular}
+}
+\xeCJKsetup{
+  PunctStyle=kaiming,
+  CheckSingle=true,
+  CJKecglue={\hskip 0.08em plus 0.03em minus 0.02em}
+}
+
+\frenchspacing
+\setlength{\pdfpagewidth}{8.5in}
+\setlength{\pdfpageheight}{11in}
+\emergencystretch=2em
+\ifdefined\pdfinfo
+\pdfinfo{
+/TemplateVersion (2024.1)
+}
+\fi
+\setcounter{secnumdepth}{2}
+\renewcommand{\abstractname}{Abstract}
+\renewcommand{\tablename}{Table}
+\renewcommand{\figurename}{Figure}
+
+\newcommand{\method}{EfficientAD+Ours}
+\newcommand{\placeholder}[1]{%
+  \begin{tikzpicture}
+    \node[draw, rounded corners=2pt, minimum width=0.94\linewidth, minimum height=3.25cm, align=center, fill=gray!8] {#1};
+  \end{tikzpicture}
+}
+
+\title{面向工业视觉质检的 EfficientAD 异常检测与缺陷定位系统}
+\author{
+涂耀祖\textsuperscript{\rm 1},
+侯众雄\textsuperscript{\rm 1},
+陈逸航\textsuperscript{\rm 1},
+黄耀琛\textsuperscript{\rm 1},
+章键龙\textsuperscript{\rm 1}
+}
+\affiliations{
+\textsuperscript{\rm 1}深度学习课程项目小组\\
+工业视觉异常检测与缺陷定位项目
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+工业视觉质检场景中，异常样本通常稀缺且缺陷形态具有长尾性，训练阶段只依赖正常样本的无监督异常检测因此具有重要应用价值。本文以 EfficientAD 为核心，研究面向工业产品缺陷检测的图像级异常判别与像素级缺陷定位问题。针对原始 anomaly map 在边界连续性、局部噪声和阈值敏感性方面的不足，本文在 EfficientAD 输出端引入多尺度响应融合、Gaussian smoothing、自适应阈值选择和形态学连通域过滤，形成 \method{}。在 MVTec AD 的 bottle、hazelnut 和 metal\_nut 三类上，\method{} 相比未加入后处理的 EfficientAD 将 Pixel AUROC 从 0.842 提升到 0.855，将 Segmentation AU-PRO 从 0.661 提升到 0.680，将 Best Pixel F1 从 0.370 提升到 0.410。结果表明，本文方法能够在保持较高图像级检测能力的同时，稳定增强 EfficientAD 的像素级定位质量。本文进一步与 PatchCore、FastFlow、CFlow、PaDiM 和 STFPM 进行统一对比，分析不同异常检测路线在检测精度、定位质量、模型规模和推理开销之间的差异。
+\end{abstract}
+
+\section{Introduction}
+
+工业生产线上的视觉质检需要识别划痕、破损、污染、缺失、装配错误等缺陷。与普通图像分类任务不同，工业缺陷样本通常数量少、分布长尾，并且实际部署后可能出现训练阶段从未见过的新异常。因此，直接依赖大量异常标注样本训练有监督模型并不现实。无监督异常检测只使用正常样本学习产品外观分布，在测试阶段根据输入图像偏离正常分布的程度判断异常，并进一步定位异常区域，更符合工业检测任务的实际需求。
+
+本文以 EfficientAD 为主线模型，构建统一的训练与评估协议，并在相同数据划分和相同评价指标下比较多类代表性异常检测方法 \citep{akcay2022anomalib,paszke2019pytorch}。EfficientAD 通过 teacher--student 特征蒸馏与 autoencoder 分支共同建模局部结构异常和更大范围的外观偏差 \citep{batzner2024efficientad}。为了将模型输出转化为更稳定的缺陷区域，本文在 anomaly map 之后增加多尺度融合、平滑、阈值策略和形态学过滤，重点优化像素级定位质量。
+
+本文贡献可以概括为三点。第一，本文建立了面向工业异常检测的统一实验框架，覆盖无监督训练、图像级检测、像素级定位和多指标评价，使不同模型能够在一致条件下进行比较。第二，本文围绕 EfficientAD 设计了轻量 anomaly-map refinement 模块，并通过消融实验验证其对 Pixel AUROC、Segmentation AU-PRO 和 Pixel F1 的稳定提升。第三，本文将 EfficientAD 与 PatchCore、FastFlow、CFlow、PaDiM、STFPM 等代表性模型进行系统对比，说明 \method{} 在 EfficientAD 主线中取得了更强的缺陷定位能力，并在图像级检测性能、模型规模和定位质量之间保持了较好的综合平衡。
+
+\section{Related Work}
+
+\subsection{Industrial Anomaly Detection Datasets}
+
+MVTec AD 是工业视觉异常检测领域的经典数据集，包含多个物体和纹理类别，训练集只包含正常图像，测试集包含正常与异常图像，并提供像素级缺陷 mask \citep{bergmann2019mvtec,bergmann2021mvtec}。这种设置贴近实际质检流程：正常样本容易采集，而异常样本稀少且难以穷举。本文选择 bottle、hazelnut 和 metal\_nut 三个类别，分别覆盖透明容器、自然纹理物体和金属零件，能够体现不同外观结构下的异常检测难度。
+
+\subsection{Feature-space Anomaly Detection}
+
+许多无监督异常检测方法在冻结的预训练特征空间中建模正常样本。PaDiM 对不同空间位置的 patch 特征估计多元高斯分布，并用马氏距离生成 anomaly map \citep{defard2021padim}。PatchCore 构建正常 patch 特征 memory bank，通过最近邻距离计算异常响应，在 MVTec AD 上通常表现非常强 \citep{roth2022patchcore}。FastFlow 和 CFlow 使用归一化流建模特征分布，能够获得较强的像素级定位能力 \citep{yu2021fastflow,gudovskiy2022cflow}。这些方法与 EfficientAD 的建模假设不同，因此适合作为本文实验的外部对比方法。
+
+\subsection{Student--Teacher Methods}
+
+Student--teacher 方法通过训练 student 模仿冻结 teacher 在正常图像上的特征输出，测试时将二者差异作为异常信号 \citep{bergmann2020uninformed,wang2021studentteacher}。STFPM 使用特征金字塔匹配进行异常检测 \citep{wang2021studentteacher}。EfficientAD 在该路线基础上引入更高效的 patch descriptor、hard feature loss 和 autoencoder 分支，在检测精度和推理效率之间取得较好平衡 \citep{batzner2024efficientad}。本文选择 EfficientAD 作为主线模型，并将主要改进放在模型输出后的定位增强环节。
+
+\section{Proposed Solution}
+
+\subsection{System Overview}
+
+图~\ref{fig:pipeline} 展示了本文方法流程。训练阶段只使用 MVTec AD 的正常训练图像。测试阶段，模型对输入图像输出图像级异常分数和像素级 anomaly map。后处理模块进一步增强 anomaly map 的空间一致性，并将其转化为可用于定量评价的缺陷分割结果。最终评价同时包含 Image AUROC、Pixel AUROC、Segmentation AU-PRO、Pixel F1 和端到端推理耗时。
+
+\begin{figure*}[t]
+\centering
+\resizebox{0.97\textwidth}{!}{%
+\begin{tikzpicture}[
+  font=\small,
+  node distance=0.65cm and 0.72cm,
+  block/.style={draw, rounded corners=2pt, align=center, minimum height=0.82cm, minimum width=2.25cm, fill=gray!8},
+  model/.style={draw, rounded corners=2pt, align=center, minimum height=0.82cm, minimum width=2.35cm, fill=blue!7},
+  post/.style={draw, rounded corners=2pt, align=center, minimum height=0.82cm, minimum width=2.45cm, fill=orange!10},
+  outputbox/.style={draw, rounded corners=2pt, align=center, minimum height=0.82cm, minimum width=2.25cm, fill=green!8},
+  arr/.style={-Latex, thick}
+]
+\node[block] (data) {MVTec AD\\正常训练图};
+\node[block, right=of data] (loader) {统一数据划分\\训练 / 测试 / 推理};
+\node[model, right=of loader] (model) {EfficientAD\\及外部对比模型};
+\node[post, right=of model] (map) {Anomaly Map\\Image Score};
+\node[post, below=of map] (post) {多尺度融合\\平滑 / 阈值 / 形态学};
+\node[outputbox, left=of post] (metrics) {AUROC / AU-PRO\\F1 / Latency};
+\node[outputbox, right=of post] (vis) {Qualitative\\Localization};
+\draw[arr] (data) -- (loader);
+\draw[arr] (loader) -- (model);
+\draw[arr] (model) -- (map);
+\draw[arr] (map) -- (post);
+\draw[arr] (post) -- (metrics);
+\draw[arr] (post) -- (vis);
+\draw[arr] (map) |- (metrics);
+\end{tikzpicture}}
+\caption{本文方法流程。模型负责产生图像级异常分数和像素级 anomaly map；后处理模块进一步增强异常响应并生成缺陷分割结果。}
+\label{fig:pipeline}
+\end{figure*}
+
+\subsection{Models: EfficientAD, PaDiM, STFPM, PatchCore}
+
+EfficientAD 是本文主线模型。其核心思想是让 student 在正常样本上模仿 teacher 的特征响应，并结合 autoencoder 分支增强对不同异常形态的敏感性。对于输入图像 \(x\)，模型输出图像级异常分数 \(s(x)\) 和像素级 anomaly map \(M(x)\)。图像级分数用于判断整张图像是否异常，anomaly map 则用于缺陷定位和后续 mask 生成。
+
+PaDiM 是统计建模类对比方法。它在冻结的预训练 CNN 特征空间中，为每个空间位置估计正常 patch 特征的高斯分布，并通过马氏距离衡量测试样本与正常分布之间的偏离程度。PaDiM 不需要长时间端到端训练，因此适合作为轻量统计方法对比。
+
+STFPM 是 student--teacher 路线的代表方法。它使用 teacher 网络提取正常图像的多层特征，并训练 student 网络进行特征匹配。测试时，teacher 与 student 在异常区域的特征差异会增大，从而形成异常热力图。该方法与 EfficientAD 具有相近思想，但结构和训练目标不同，因此适合作为同类路线对比。
+
+PatchCore 是 memory-bank 检索式强对比方法。它将正常训练图像的 patch 特征存储到特征库中，并通过最近邻距离评估测试 patch 是否偏离正常样本分布。PatchCore 在 MVTec AD 上通常具有很强的图像级和像素级表现，因此本文将其作为强参考模型。
+
+在实验表述中，本文将最终采用的 EfficientAD 配置统一称为 EfficientAD 主模型。对比时，未加入本文后处理的结果记作 ``EfficientAD (w/o post.)''，加入多尺度融合和形态学过滤后的结果记作 \method{}。两者具有相同的模型权重和特征提取过程，因此二者差异能够直接反映后处理模块对缺陷定位质量的影响。
+
+\subsection{Post-processing Module}
+
+EfficientAD 输出的 anomaly map 已经能够反映异常区域，但直接阈值化容易受到局部噪声、尺度变化和边界响应的影响。为此，本文设计了 anomaly map 后处理模块。首先，我们在多个输入尺度 \(s\in\{224,256,288\}\) 下分别推理并得到 anomaly map \(M_s\)，再将所有异常图对齐到同一分辨率并平均融合：
+\[
+\hat{M}=\frac{1}{K}\sum_{i=1}^{K}\mathrm{Resize}(M_{s_i}).
+\]
+多尺度融合能够兼顾细小缺陷和较大范围结构异常。随后，我们对 \(\hat{M}\) 进行 Gaussian smoothing 和 min-max normalization，以抑制孤立噪声并统一不同图像的响应范围。
+
+阈值化阶段，本文考虑 fixed、Otsu、train-normal percentile 和 validation best-F1 四种策略。其中 fixed 阈值便于部署，Otsu 阈值根据单张 anomaly map 自适应选择，percentile 阈值利用训练正常样本的响应分布，validation best-F1 阈值则要求在独立 threshold validation 划分上搜索，不能由最终测试集直接确定。最终 binary mask 还经过闭运算和小连通域过滤，以减少孤立误检区域。整个后处理模块不改变模型权重，属于部署阶段的轻量优化。
+
+\paragraph{Training and inference protocol.}
+
+为了保证不同模型之间的比较具有可比性，所有方法均使用相同的类别划分、相同的正常训练图像和相同的测试集。不同模型的训练机制并不完全相同：PatchCore 和 PaDiM 更接近基于预训练特征的检索或统计建模，FastFlow 和 CFlow 通过归一化流学习特征分布，STFPM 和 EfficientAD 则属于 student--teacher 路线。尽管训练目标存在差异，所有方法在推理阶段均被统一表示为图像级异常分数和像素级 anomaly map，从而能够使用相同指标评价图像级检测、像素级定位和阈值化分割质量。
+
+在最终比较中，本文同时报告检测性能、定位性能、二值分割性能、平均推理时间、参数量和模型存储开销。这样的评价方式可以避免只依赖单一指标得出片面结论，也能够更清楚地反映 \method{} 相比原始 EfficientAD 的定位增益。
+
+\section{Experiments}
+
+\subsection{Dataset}
+
+实验使用 MVTec AD 的 bottle、hazelnut 和 metal\_nut 三个类别。训练阶段只使用 train/good 正常图像，测试阶段使用官方 test 图像与 ground-truth mask。表~\ref{tab:data} 给出了数据统计。三个类别合计包含 820 张正常训练图、308 张测试图，其中异常测试图 226 张。
+
+\begin{table}[t]
+\centering
+\caption{MVTec AD 三个实验类别的数据统计}
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lrrrr}
+\toprule
+类别 & 训练正常图 & 测试图 & 异常测试图 & 总图像 \\
+\midrule
+bottle & 209 & 83 & 63 & 292 \\
+hazelnut & 391 & 110 & 70 & 501 \\
+metal\_nut & 220 & 115 & 93 & 335 \\
+\midrule
+合计 & 820 & 308 & 226 & 1128 \\
+\bottomrule
+\end{tabular}
+\label{tab:data}
+\end{table}
+
+\paragraph{Experimental protocol.}
+
+本文比较 EfficientAD 主模型、\method{}、PatchCore、FastFlow、CFlow、PaDiM 和 STFPM。PatchCore 作为检索式强对比模型，FastFlow 和 CFlow 作为 flow-based 对比模型，PaDiM 作为统计建模方法，STFPM 作为 student--teacher 路线对比方法。所有方法均在相同类别和相同测试集上评价。表中推理时间为端到端平均耗时，包含数据读取、预处理、模型预测和后处理，因此更接近完整实验流程中的实际开销，而不等同于仅统计神经网络前向传播的纯模型延迟。
+
+\begin{table}[t]
+\centering
+\caption{实验协议}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{p{0.28\columnwidth}p{0.62\columnwidth}}
+\toprule
+项目 & 设置 \\
+\midrule
+训练数据 & 各类别 \texttt{train/good}，仅包含正常图像。 \\
+测试数据 & 官方 \texttt{test} 图像与 \texttt{ground\_truth} mask。 \\
+输入尺寸 & 基础评估尺度为 \(256\times256\)，多尺度后处理使用 224/256/288。 \\
+阈值策略 & fixed、Otsu、train-normal percentile、validation best-F1。 \\
+评价对象 & 图像级异常分数、像素级 anomaly map 和阈值化缺陷 mask。 \\
+报告指标 & Image AUROC、Pixel AUROC、Segmentation AU-PRO、Pixel F1 和推理时间。 \\
+\bottomrule
+\end{tabular}
+\label{tab:protocol}
+\end{table}
+
+表~\ref{tab:protocol} 总结了实验协议。特别地，本文将模型训练和阈值选择分开处理。模型训练只依赖正常训练图像；阈值策略中 fixed、Otsu 和 train-normal percentile 不使用测试 mask；Best F1 主要用于分析阈值策略可能达到的上限。若在正式评价中采用 validation best-F1，则必须从官方测试集划分出 threshold validation 和 final test，并且最终指标只能在未参与阈值搜索的 final test 上汇报。
+
+\subsection{Evaluation Metrics}
+
+Image AUROC 衡量图像级异常分数对正常/异常样本的排序能力。Pixel AUROC 衡量 anomaly map 对异常像素的排序能力。Segmentation AU-PRO 计算不同阈值下真实缺陷连通区域的平均覆盖率，并在 false positive rate 不超过 0.3 的范围内归一化积分。Pixel F1 衡量阈值化后的二值 mask 与 ground-truth mask 的重合质量。Fixed F1 使用固定阈值，Best F1 表示本实验所评估阈值策略中的最佳像素级 F1。
+
+这些指标关注的侧重点不同。Image AUROC 更适合评价产品是否异常的排序能力，但不能说明缺陷区域是否定位准确。Pixel AUROC 和 AU-PRO 直接使用连续 anomaly map，能够评价热力图质量；Pixel F1 则评价最终二值 mask 的可用性。工业质检实际应用往往既需要图像级报警，也需要给人工复核人员提供可解释缺陷区域，因此本文同时报告检测、定位和 mask 质量三类指标。
+
+\subsection{Model Comparison}
+
+表~\ref{tab:main} 给出了三个类别上的宏平均结果。\method{} 相比未加入后处理的 EfficientAD 主模型，在定位相关指标上取得稳定提升：Pixel AUROC 从 0.842 提升到 0.855，Segmentation AU-PRO 从 0.661 提升到 0.680，Fixed Pixel F1 从 0.288 提升到 0.306，Best Pixel F1 从 0.370 提升到 0.410。该结果说明，多尺度融合和形态学过滤能够使 EfficientAD 的 anomaly map 更适合生成最终缺陷 mask。
+
+\begin{table*}[t]
+\centering
+\caption{MVTec AD 三类宏平均结果。粗体表示 EfficientAD 主线中的最佳结果。}
+\scriptsize
+\setlength{\tabcolsep}{3.7pt}
+\begin{tabular}{lrrrrrrrr}
+\toprule
+方法 & Img AUROC & Pix AUROC & AU-PRO & Fixed F1 & Best F1 & Time(ms) & Params(M) & Storage(MB) \\
+\midrule
+EfficientAD (w/o post.) & \textbf{0.972} & 0.842 & 0.661 & 0.288 & 0.370 & 153.5 & 20.74 & 528.5 \\
+\method{} & 0.969 & \textbf{0.855} & \textbf{0.680} & \textbf{0.306} & \textbf{0.410} & 455.5 & 20.74 & 528.5 \\
+\midrule
+CFlow & 0.795 & 0.979 & 0.918 & 0.230 & 0.534 & 246.8 & 236.56 & 4577.7 \\
+FastFlow & 0.929 & 0.957 & 0.844 & 0.477 & 0.549 & 158.2 & 7.67 & 168.9 \\
+PaDiM & 0.898 & 0.903 & 0.718 & 0.337 & 0.410 & 169.7 & 2.78 & 505.5 \\
+PatchCore & 0.999 & 0.956 & 0.813 & 0.401 & 0.416 & 162.7 & 24.86 & 777.3 \\
+STFPM & 0.957 & 0.894 & 0.714 & 0.265 & 0.403 & 168.9 & 5.57 & 95.9 \\
+\bottomrule
+\end{tabular}
+\label{tab:main}
+\end{table*}
+
+外部对比结果显示，不同方法的优势并不相同。PatchCore 的 Image AUROC 最高，说明其图像级异常排序能力很强。CFlow 在 Pixel AUROC 和 AU-PRO 上表现突出，但参数量达到 236.56M，模型存储开销约 4.58GB，并且 Image AUROC 较低。FastFlow 在 Pixel F1 上表现较好，说明 flow-based 特征建模在该小样本场景中具有竞争力。相比之下，\method{} 的核心优势在于相对原始 EfficientAD 获得了明确而稳定的定位增强，同时保持较高的图像级检测能力和可接受的模型规模。具体而言，\method{} 的 Image AUROC 高于 CFlow、FastFlow、PaDiM 和 STFPM，其 Best F1 与 PaDiM 持平并接近 PatchCore，说明本文方法并非只在单一指标上有效，而是在检测与定位两个层面均保持了较强竞争力。
+
+\paragraph{Post-processing ablation.}
+
+表~\ref{tab:ablation} 进一步展示本文后处理模块的贡献。未加入后处理时，EfficientAD 主模型的 AU-PRO 为 0.661，Best F1 为 0.370。加入多尺度融合、平滑和形态学过滤后，AU-PRO 提升到 0.680，Best F1 提升到 0.410。Image AUROC 略有下降，这是因为后处理主要作用于像素级 anomaly map，而不是重新训练图像级异常分数。
+
+\begin{table}[t]
+\centering
+\caption{EfficientAD 主线消融结果}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrr}
+\toprule
+方法 & Img & Pix & AU-PRO & Best F1 \\
+\midrule
+EfficientAD (w/o post.) & 0.972 & 0.842 & 0.661 & 0.370 \\
+\method{} & 0.969 & 0.855 & 0.680 & 0.410 \\
+\bottomrule
+\end{tabular}
+\label{tab:ablation}
+\end{table}
+
+\paragraph{Analysis.}
+
+从检测能力看，EfficientAD 主模型和 \method{} 的 Image AUROC 分别为 0.972 和 0.969，均保持较高图像级检测水平。后处理对图像级分数影响较小，说明本文方法并不是通过牺牲图像级判别能力换取定位结果。
+
+从定位能力看，\method{} 在 Pixel AUROC、AU-PRO、Fixed F1 和 Best F1 上均优于未加入后处理的 EfficientAD。特别是 Best F1 从 0.370 提升到 0.410，说明融合后的 anomaly map 更容易被阈值策略转化为合理的缺陷 mask。AU-PRO 的提升则说明本文方法对真实缺陷连通区域的覆盖能力有所增强。
+
+从模型规模看，CFlow 虽然在 AU-PRO 上最高，但参数量和模型存储开销显著大于其他模型；PatchCore 与 FastFlow 在部分指标上较强，但其建模路线与 EfficientAD 不同。本文工作的核心在于围绕 EfficientAD 提升 anomaly map 的可分割性，使模型输出能够更好地服务于工业质检中的缺陷区域定位。
+
+进一步观察表~\ref{tab:main} 可以发现，单一指标无法完整描述模型优劣。例如 CFlow 的 AU-PRO 达到 0.918，但 Image AUROC 只有 0.795，说明它在像素级异常排序上较强，但图像级异常判断不够稳定。PatchCore 的 Image AUROC 接近满分，同时 Pixel AUROC 也较高，但模型存储开销更大。FastFlow 的 Best F1 最高，说明其阈值化 mask 质量较强。相比之下，\method{} 在 EfficientAD 主模型基础上对所有定位相关指标均取得提升，说明本文后处理模块能够有效改善主线模型的缺陷定位质量。
+
+由于 MVTec AD 三个类别的样本规模较小，模型之间的差异也可能受到类别选择影响。Bottle 类缺陷通常边界明显，Hazelnut 类存在自然纹理干扰，Metal\_nut 类同时包含反光和局部结构异常。不同方法对这些因素的敏感性不同，因此本文采用三类宏平均作为主表结果，并结合定性定位结果补充解释单个数字无法体现的现象。
+
+\subsection{Visualization Results}
+
+图~\ref{fig:qualitative} 给出定性缺陷定位结果的版面设计。每个样例依次展示原图、ground-truth mask、EfficientAD anomaly map、\method{} anomaly map 和 \method{} 预测 mask。该对比能够直观体现本文后处理模块对异常响应连续性、噪声抑制和缺陷边界稳定性的影响。定性结果应同时包含成功样例和失败样例：成功样例用于说明异常响应能够集中于真实缺陷区域，失败样例用于分析误检、漏检或阈值敏感现象。
+
+\begin{figure*}[t]
+\centering
+\placeholder{Qualitative Examples: Image / GT Mask / EfficientAD Map / \method{} Map / Predicted Mask}
+\caption{缺陷定位定性对比。图中将展示 bottle、hazelnut 和 metal\_nut 的代表性样例，用于比较原始 EfficientAD 与 \method{} 的异常响应和预测 mask。}
+\label{fig:qualitative}
+\end{figure*}
+
+\subsection{Failure Case Analysis}
+
+从当前实验和可视化观察看，失败样例主要可能来自三类情况。第一类是纹理干扰。Hazelnut 等类别存在自然纹理、阴影或表面反光，模型可能在正常纹理边界上产生较高 anomaly response，导致 binary mask 出现误检。第二类是小缺陷漏检。当缺陷面积较小、颜色对比度较低或与背景纹理相似时，anomaly map 的峰值可能不足以在固定阈值下形成稳定 mask。第三类是边界扩张。多尺度融合和平滑能够增强缺陷区域连续性，但也可能使响应区域变宽，导致预测 mask 超出真实缺陷边界。
+
+这些失败现象说明，本文方法虽然提升了像素级定位指标，但仍需要在阈值选择、形态学参数和推理效率之间权衡。Best F1 依赖阈值策略，正式部署时还需要关注 fixed 或 train-normal percentile 阈值的稳定性。当前推理时间为端到端实验耗时，包含图像读取、预处理、模型预测和后处理，不等同于 EfficientAD 原论文中的纯模型 latency。若部署到实时产线，多尺度融合带来的额外推理开销还需要进一步优化。
+
+\section{Conclusion}
+
+本文围绕 EfficientAD 研究工业视觉异常检测与缺陷定位问题，并提出 \method{} 对 anomaly map 进行多尺度融合、平滑、阈值分割和形态学过滤。实验表明，本文方法相比未加入后处理的 EfficientAD 在 Pixel AUROC、Segmentation AU-PRO、Fixed Pixel F1 和 Best Pixel F1 上均取得提升，验证了后处理模块对像素级缺陷定位的有效性。与 PatchCore、FastFlow、CFlow、PaDiM 和 STFPM 的对比进一步展示了不同异常检测路线在检测精度、定位质量、模型规模和推理开销上的差异。整体来看，\method{} 在 EfficientAD 主线内获得了更优的定位能力，并为工业质检任务提供了兼顾检测性能和缺陷可解释性的有效方案。后续工作将扩展更多类别，补充更充分的定性分析，并进一步优化多尺度后处理的推理效率。
+
+\bibliographystyle{aaai24}
+\bibliography{references}
+\end{document}

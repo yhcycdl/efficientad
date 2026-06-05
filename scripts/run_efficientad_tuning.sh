@@ -88,6 +88,8 @@ for model in "${TUNING_MODELS_LIST[@]}"; do
       --results-root "$RESULTS_ROOT" \
       --output-dir "$output_dir" \
       --fusion-scales 224 256 288 \
+      --smooth-sigma 4 \
+      --map-normalization model \
       --threshold-strategies fixed otsu percentile best_f1 \
       --threshold-val-ratio 0.2 \
       --mask-postprocess morph_cc \

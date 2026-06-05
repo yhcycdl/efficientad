@@ -150,7 +150,11 @@ def efficientad_model_size(value: str) -> Any:
         return value
 
 
-def build_engine(max_epochs: int | None = None, default_root_dir: Path | str | None = None) -> Any:
+def build_engine(
+    max_epochs: int | None = None,
+    max_steps: int | None = None,
+    default_root_dir: Path | str | None = None,
+) -> Any:
     import_anomalib()
     from anomalib.engine import Engine
 
@@ -160,6 +164,13 @@ def build_engine(max_epochs: int | None = None, default_root_dir: Path | str | N
     }
     if max_epochs is not None:
         kwargs["max_epochs"] = max_epochs
+    elif max_steps is not None:
+        # EfficientAD is commonly trained by a fixed number of optimization
+        # steps. Lightning requires an infinite epoch setting when only
+        # max_steps should determine stopping.
+        kwargs["max_epochs"] = -1
+    if max_steps is not None:
+        kwargs["max_steps"] = max_steps
     if default_root_dir is not None:
         kwargs["default_root_dir"] = str(default_root_dir)
     return Engine(**kwargs)

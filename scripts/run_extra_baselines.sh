@@ -23,6 +23,7 @@ DRAEM_PRESET="${DRAEM_PRESET:-initial20}"
 FASTFLOW_PRESET="${FASTFLOW_PRESET:-initial20}"
 REVERSE_DISTILLATION_PRESET="${REVERSE_DISTILLATION_PRESET:-initial20}"
 EFFICIENTAD_TUNE_PRESET="${EFFICIENTAD_TUNE_PRESET:-final100}"
+EFFICIENTAD_MAX_STEPS="${EFFICIENTAD_MAX_STEPS:-}"
 NUM_WORKERS="${NUM_WORKERS:-8}"
 
 mkdir -p "$LOG_ROOT"
@@ -106,6 +107,11 @@ for model in "${BASELINE_LIST[@]}"; do
   echo "[baseline] train $model categories=${CATEGORIES_CSV} preset=${preset}"
   pids=()
   idx=0
+  train_step_args=()
+  if [[ "$model" == efficientad* && -n "$EFFICIENTAD_MAX_STEPS" ]]; then
+    train_step_args=(--max-steps "$EFFICIENTAD_MAX_STEPS")
+    echo "[baseline] $model will use max_steps=$EFFICIENTAD_MAX_STEPS"
+  fi
   for category in "${CATEGORIES_LIST[@]}"; do
     gpu="${GPU_LIST[$((idx % ${#GPU_LIST[@]}))]}"
     log="$LOG_ROOT/train_${model}_${category}.log"
@@ -117,7 +123,8 @@ for model in "${BASELINE_LIST[@]}"; do
       --results-root "$RESULTS_ROOT" \
       --train-batch-size "$train_bs" \
       --eval-batch-size "$eval_bs" \
-      --num-workers "$NUM_WORKERS" >"$log" 2>&1 &
+      --num-workers "$NUM_WORKERS" \
+      "${train_step_args[@]}" >"$log" 2>&1 &
     pids+=("$!")
     idx=$((idx + 1))
   done

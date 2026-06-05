@@ -18,6 +18,7 @@ IFS=',' read -r -a CATEGORIES_LIST <<< "$CATEGORIES_CSV"
 
 PATCHCORE_PRESET="${PATCHCORE_PRESET:-env}"
 EFFICIENTAD_PRESET="${EFFICIENTAD_PRESET:-final100}"
+EFFICIENTAD_MAX_STEPS="${EFFICIENTAD_MAX_STEPS:-}"
 
 PATCHCORE_TRAIN_BATCH_SIZE="${PATCHCORE_TRAIN_BATCH_SIZE:-16}"
 PATCHCORE_EVAL_BATCH_SIZE="${PATCHCORE_EVAL_BATCH_SIZE:-16}"
@@ -116,6 +117,11 @@ if [[ "$RUN_EFFICIENTAD" == "1" ]]; then
   echo "[full] train EfficientAD categories=${CATEGORIES_CSV} preset=${EFFICIENTAD_PRESET}"
   pids=()
   idx=0
+  efficientad_step_args=()
+  if [[ -n "$EFFICIENTAD_MAX_STEPS" ]]; then
+    efficientad_step_args=(--max-steps "$EFFICIENTAD_MAX_STEPS")
+    echo "[full] EfficientAD will use max_steps=$EFFICIENTAD_MAX_STEPS"
+  fi
   for category in "${CATEGORIES_LIST[@]}"; do
     gpu="${GPU_LIST[$((idx % ${#GPU_LIST[@]}))]}"
     log="$LOG_ROOT/train_efficientad_${category}.log"
@@ -127,7 +133,8 @@ if [[ "$RUN_EFFICIENTAD" == "1" ]]; then
       --results-root "$RESULTS_ROOT" \
       --train-batch-size "$EFFICIENTAD_TRAIN_BATCH_SIZE" \
       --eval-batch-size "$EFFICIENTAD_EVAL_BATCH_SIZE" \
-      --num-workers "$NUM_WORKERS" >"$log" 2>&1 &
+      --num-workers "$NUM_WORKERS" \
+      "${efficientad_step_args[@]}" >"$log" 2>&1 &
     pids+=("$!")
     idx=$((idx + 1))
   done
